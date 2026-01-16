@@ -8,6 +8,8 @@ chromadb>=0.4.24
 # LLMs
 langchain-google-genai
 langchain-community
+langchain-groq
+langchain-huggingface
 
 # Embeddings (free)
 sentence-transformers
@@ -19,7 +21,16 @@ pytesseract
 pdf2image
 pillow
 
+# Web scraping (for URL loader)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# YouTube transcript fetching
+youtube-transcript-api>=0.6.0
+
+# Document processing (for syllabus loader)
+python-docx>=0.8.11
+
 # Utilities
 python-dotenv
-
-processor
+pydantic>=2.0.0

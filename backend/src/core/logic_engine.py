@@ -157,9 +157,16 @@ class AdaptiveLogic:
             "timestamp": datetime.now().isoformat()
         })
         
-        # Update mastery (weighted average: 70% history + 30% recent)
+        # Update mastery using DifficultyEngine (includes difficulty weighting)
+        from src.core.difficulty_engine import DifficultyEngine
+        engine = DifficultyEngine()
         old_mastery = state["mastery_score"]
-        state["mastery_score"] = (old_mastery * 0.7) + (accuracy * 0.3)
+        state["mastery_score"] = engine.calculate_mastery_score(
+            accuracy=accuracy,
+            current_mastery=old_mastery,
+            current_difficulty=state["current_difficulty"],
+            weight_new=0.3  # 30% new, 70% historical
+        )
         
         # Prepare feedback
         feedback = {

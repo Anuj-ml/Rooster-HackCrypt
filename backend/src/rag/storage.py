@@ -109,8 +109,14 @@ class KnowledgeBase:
     def retrieve_context(self, query, pdf_source_id, k=5):
         """
         Retrieve full parent documents based on proposition similarity.
+        If query is "default", retrieves random documents from entire source.
         Reads from persistent storage.
         """
+        # Handle "default" topic - retrieve from entire document
+        if query.lower() == "default":
+            print(f"   📚 Retrieving from entire document (default mode)")
+            return self.retrieve_all_documents(pdf_source_id, k=k)
+        
         # Step 1: Search propositions in ChromaDB
         results = self.vectorstore.similarity_search(
             query, 
@@ -130,6 +136,47 @@ class KnowledgeBase:
         retrieved_docs = [self.docstore.get(pid) for pid in parent_ids if pid in self.docstore]
         
         return retrieved_docs
+    
+    def retrieve_all_documents(self, pdf_source_id, k=5):
+        """
+        Retrieve random documents from entire source (for 'default' topic).
+        
+        Args:
+            pdf_source_id: Source identifier to filter by
+            k: Number of documents to retrieve
+            
+        Returns:
+            List of random parent documents from the source
+        """
+        import random
+        
+        print(f"   🔎 Searching docstore for source_id: '{pdf_source_id}'")
+        print(f"   📊 Total documents in docstore: {len(self.docstore)}")
+        
+        # Get all documents for this source
+        source_docs = [
+            doc for doc_id, doc in self.docstore.items()
+            if doc.metadata.get("pdf_source_id") == pdf_source_id
+        ]
+        
+        if not source_docs:
+            print(f"   ⚠ No documents found for source: '{pdf_source_id}'")
+            print(f"   💡 Available sources in docstore:")
+            available = set()
+            for doc in self.docstore.values():
+                sid = doc.metadata.get("pdf_source_id")
+                if sid:
+                    available.add(sid)
+            for src in sorted(available):
+                print(f"      - {src}")
+            return []
+        
+        # Return random selection (or all if fewer than k)
+        num_to_retrieve = min(k, len(source_docs))
+        selected_docs = random.sample(source_docs, num_to_retrieve)
+        
+        print(f"   ✓ Retrieved {num_to_retrieve} random documents from entire source")
+        return selected_docs
     
     def get_all_pdf_sources(self):
         """Get list of all indexed PDF source IDs."""

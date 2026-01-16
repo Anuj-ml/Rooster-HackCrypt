@@ -16,6 +16,12 @@ class QuizQuestion(BaseModel):
     options: List[str]
     correct_answer: str
     explanation: str
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Ensure exactly 4 options
+        while len(self.options) < 4:
+            self.options.append(f"[Option {len(self.options) + 1} - Invalid generation]")
 
 class QuizOutput(BaseModel):
     questions: List[QuizQuestion]

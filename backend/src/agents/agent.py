@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, END
-from schemas import AgentState, QuizOutput
+from src.models.schemas import AgentState, QuizOutput
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -34,8 +34,14 @@ class QuizAgent:
         Retrieve Node: Fetch relevant documents from Knowledge Base.
         
         Uses semantic search to find documents related to the topic.
+        Special case: If topic is "default", retrieves from entire document.
         """
-        print(f"   🔍 Retrieving context for: {state.topic}")
+        if state.topic.lower() == "default":
+            print(f"   🔍 Retrieving context from: ENTIRE DOCUMENT (default mode)")
+        else:
+            print(f"   🔍 Retrieving context for: {state.topic}")
+        
+        print(f"   📂 Source ID: {state.pdf_source_id}")
         
         docs = self.kb.retrieve_context(
             query=state.topic,
@@ -45,7 +51,10 @@ class QuizAgent:
         if docs:
             print(f"   ✓ Retrieved {len(docs)} relevant documents")
         else:
-            print(f"   ⚠ No documents found for topic: {state.topic}")
+            if state.topic.lower() == "default":
+                print(f"   ⚠ No documents found in source: {state.pdf_source_id}")
+            else:
+                print(f"   ⚠ No documents found for topic: {state.topic}")
         
         return {"retrieved_docs": docs}
 
@@ -86,26 +95,52 @@ Generate 5 {difficulty} difficulty questions about "{topic}" based on the contex
 Remember:
 - Options should be plain text without any numbering or lettering
 - The correct_answer must exactly match one option
-- Questions should test understanding, not just memorization""")
+- Questions should test understanding, not just memorization
+
+Return ONLY valid JSON in this exact format:
+{{
+  "questions": [
+    {{
+      "question": "question text",
+      "options": ["option1", "option2", "option3", "option4"],
+      "correct_answer": "option1",
+      "explanation": "explanation text"
+    }}
+  ]
+}}""")
         
         print(f"   🧠 Generating {state.current_difficulty} questions...")
         
         try:
-            chain = prompt | self.llm.with_structured_output(QuizOutput)
+            # Use JSON mode instead of structured output for better Groq compatibility
+            response = self.llm.invoke(
+                prompt.format(
+                    context=context_str,
+                    difficulty=state.current_difficulty,
+                    topic=state.topic
+                ),
+                response_format={"type": "json_object"}
+            )
             
-            response = chain.invoke({
-                "context": context_str,
-                "difficulty": state.current_difficulty,
-                "topic": state.topic
-            })
+            # Parse JSON response
+            import json
+            result_dict = json.loads(response.content)
             
-            if response and response.questions:
-                print(f"   ✓ Generated {len(response.questions)} questions")
+            # Convert to QuizOutput
+            from src.models.schemas import QuizQuestion
+            questions = [
+                QuizQuestion(**q) for q in result_dict.get("questions", [])
+            ]
             
-            return {"generated_quiz": response}
+            quiz_output = QuizOutput(questions=questions)
+            
+            if quiz_output and quiz_output.questions:
+                print(f"   ✓ Generated {len(quiz_output.questions)} questions")
+            
+            return {"generated_quiz": quiz_output}
             
         except Exception as e:
-            print(f"   ✗ Quiz generation failed: {str(e)[:100]}")
+            print(f"   ✗ Quiz generation failed: {str(e)[:200]}")
             return {"generated_quiz": None}
 
     def _build_graph(self):

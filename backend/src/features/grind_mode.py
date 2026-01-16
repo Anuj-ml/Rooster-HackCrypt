@@ -15,7 +15,8 @@ Default: Difficulty changes every 4 batches (vs 2 in quiz mode)
 from typing import List, Dict, Any, Optional
 import random
 
-from difficulty_engine import (
+from src.core.difficulty_engine import (
+    DifficultyEngine,
     apply_grind_difficulty,
     calculate_streak,
     calculate_mastery_score,
@@ -43,7 +44,8 @@ class GrindMode:
         self,
         agent,
         engine,
-        config: Dict[str, Any] = None
+        config: Dict[str, Any] = None,
+        difficulty_engine: Optional[DifficultyEngine] = None
     ):
         """
         Initialize Grind Mode.
@@ -52,10 +54,12 @@ class GrindMode:
             agent: QuizAgent instance for generating quizzes
             engine: AdaptiveLogic engine for session management
             config: Grind mode configuration (from get_grind_config())
+            difficulty_engine: Optional DifficultyEngine for calculations
         """
         self.agent = agent
         self.engine = engine
         self.config = config if config is not None else DEFAULT_GRIND_CONFIG.copy()
+        self.difficulty_engine = difficulty_engine or DifficultyEngine()
         
         # Track recent accuracies per session for averaging
         self._session_accuracies: Dict[str, List[float]] = {}
@@ -80,11 +84,11 @@ class GrindMode:
             pdf_id: PDF source identifier
             topic: Topic for quiz generation
             difficulty: Starting difficulty level (EASY/MEDIUM/HARD)
-            dynamic_difficulty: Whether difficulty can change (default: from config)
-            evaluation_interval: Batches between difficulty evaluation (default: 4)
-            level_up_threshold: Accuracy to level up (default: 0.8)
-            level_down_threshold: Accuracy to level down (default: 0.4)
-            streak_threshold: Accuracy to maintain streak (default: 0.8)
+            dynamic_difficulty: Whether difficulty can change
+            evaluation_interval: Batches between difficulty evaluation
+            level_up_threshold: Accuracy to level up
+            level_down_threshold: Accuracy to level down
+            streak_threshold: Accuracy to maintain streak
             
         Returns:
             session_id: New session identifier
@@ -142,7 +146,7 @@ class GrindMode:
         
         Args:
             session_id: Session identifier
-            num_questions: Number of questions (default: 5)
+            num_questions: Number of questions
             
         Returns:
             QuizOutput with questions
@@ -186,11 +190,6 @@ class GrindMode:
         """
         Submit quiz results and update session state.
         
-        For grind mode:
-        - Streak updates based on performance
-        - Difficulty may change if dynamic_enabled (every N batches)
-        - Mastery score updates with difficulty weighting
-        
         Args:
             session_id: Session identifier
             results: List of boolean results (True = correct)
@@ -216,15 +215,15 @@ class GrindMode:
         if len(self._session_accuracies[session_id]) > max_history:
             self._session_accuracies[session_id] = self._session_accuracies[session_id][-max_history:]
         
-        # Calculate streak
-        streak_result = calculate_streak(
+        # Calculate streak using DifficultyEngine
+        streak_result = self.difficulty_engine.calculate_streak(
             accuracy=accuracy,
             current_streak=state["streak"],
             streak_threshold=config.get("streak_threshold", 0.8)
         )
         
-        # Calculate mastery
-        new_mastery = calculate_mastery_score(
+        # Calculate mastery using DifficultyEngine
+        new_mastery = self.difficulty_engine.calculate_mastery_score(
             accuracy=accuracy,
             current_mastery=state["mastery_score"],
             current_difficulty=state["current_difficulty"],
@@ -235,7 +234,7 @@ class GrindMode:
         old_difficulty = state["current_difficulty"]
         batch_count = len(state.get("history", [])) + 1
         
-        difficulty_result = apply_grind_difficulty(
+        difficulty_result = self.difficulty_engine.apply_grind_difficulty(
             recent_accuracies=self._session_accuracies[session_id],
             current_difficulty=old_difficulty,
             batch_count=batch_count,
@@ -265,15 +264,7 @@ class GrindMode:
         })
         
         # Build message
-        if streak_result["streak_broken"]:
-            message = f"💔 Streak broken! Starting fresh."
-        elif streak_result["streak_continued"]:
-            message = f"🔥 Streak: {streak_result['new_streak']}! Keep it going!"
-        else:
-            message = f"Keep practicing to build your streak!"
-        
-        if difficulty_result["difficulty_changed"]:
-            message += f" Difficulty adjusted: {old_difficulty} → {new_difficulty}"
+        message = self._build_feedback_message(streak_result, difficulty_result, old_difficulty, new_difficulty)
         
         feedback = {
             "session_id": session_id,
@@ -291,42 +282,53 @@ class GrindMode:
             "message": message
         }
         
-        print(f"\n{'─'*50}")
-        print(f"📊 GRIND RESULTS")
-        print(f"{'─'*50}")
-        print(f"   Score: {correct}/{total} ({accuracy*100:.0f}%)")
-        print(f"   Streak: {streak_result['new_streak']}")
-        print(f"   Mastery: {new_mastery:.2%}")
-        
-        if difficulty_result["difficulty_changed"]:
-            print(f"   Difficulty: {old_difficulty} → {new_difficulty}")
-        else:
-            print(f"   Difficulty: {new_difficulty} (unchanged)")
-        
-        print(f"\n   {message}")
-        print(f"{'─'*50}")
+        self._print_results(feedback, difficulty_result)
         
         return feedback
     
-    def get_grind_stats(self, session_id: str) -> Dict[str, Any]:
-        """
-        Get detailed practice statistics.
+    def _build_feedback_message(
+        self,
+        streak_result: Dict[str, Any],
+        difficulty_result: Dict[str, Any],
+        old_difficulty: str,
+        new_difficulty: str
+    ) -> str:
+        """Build feedback message based on results."""
+        if streak_result["streak_broken"]:
+            message = f"💔 Streak broken! Starting fresh."
+        elif streak_result["streak_continued"]:
+            message = f"🔥 Streak: {streak_result['new_streak']}! Keep it going!"
+        else:
+            message = f"Keep practicing to build your streak!"
         
-        Args:
-            session_id: Session identifier
-            
-        Returns:
-            Statistics dictionary
-        """
+        if difficulty_result["difficulty_changed"]:
+            message += f" Difficulty adjusted: {old_difficulty} → {new_difficulty}"
+        
+        return message
+    
+    def _print_results(self, feedback: Dict[str, Any], difficulty_result: Dict[str, Any]):
+        """Print formatted results to console."""
+        print(f"\n{'─'*50}")
+        print(f"📊 GRIND RESULTS")
+        print(f"{'─'*50}")
+        print(f"   Score: {feedback['correct']}/{feedback['total']} ({feedback['accuracy']*100:.0f}%)")
+        print(f"   Streak: {feedback['streak']}")
+        print(f"   Mastery: {feedback['mastery']:.2%}")
+        
+        if difficulty_result["difficulty_changed"]:
+            print(f"   Difficulty: {feedback['old_difficulty']} → {feedback['new_difficulty']}")
+        else:
+            print(f"   Difficulty: {feedback['new_difficulty']} (unchanged)")
+        
+        print(f"\n   {feedback['message']}")
+        print(f"{'─'*50}")
+    
+    def get_grind_stats(self, session_id: str) -> Dict[str, Any]:
+        """Get detailed practice statistics."""
         return self.engine.get_session_stats(session_id)
     
     def display_stats(self, session_id: str):
-        """
-        Display formatted statistics for a grind session.
-        
-        Args:
-            session_id: Session identifier
-        """
+        """Display formatted statistics for a grind session."""
         stats = self.get_grind_stats(session_id)
         state = self.engine.get_session_state(session_id)
         config = state.get("grind_config", self.config)
@@ -351,8 +353,108 @@ class GrindMode:
         print(f"{'═'*50}")
 
 
+class GrindPracticeRunner:
+    """Helper class for running grind practice loops."""
+    
+    @staticmethod
+    def run_practice_loop(
+        grind_mode: GrindMode,
+        session_id: str,
+        num_rounds: int = 3,
+        simulate_performance: float = 0.8,
+        questions_per_round: int = 5
+    ):
+        """
+        Run automated practice loop for demonstration or testing.
+        
+        Args:
+            grind_mode: GrindMode instance
+            session_id: Session identifier
+            num_rounds: Number of quiz rounds
+            simulate_performance: Probability of correct answer
+            questions_per_round: Questions per quiz
+        """
+        print(f"\n{'═'*60}")
+        print(f"🏋️ GRIND ZONE - {num_rounds} Rounds")
+        print(f"{'═'*60}")
+        
+        state = grind_mode.engine.get_session_state(session_id)
+        config = state.get("grind_config", grind_mode.config)
+        
+        dynamic_str = "dynamic" if config.get("dynamic_enabled", True) else "fixed"
+        print(f"  Difficulty: {state['current_difficulty']} ({dynamic_str})")
+        print(f"  Topic: {state['topic']}")
+        
+        for round_num in range(1, num_rounds + 1):
+            print(f"\n{'─'*40}")
+            print(f"📝 Round {round_num}/{num_rounds}")
+            print(f"{'─'*40}")
+            
+            quiz = grind_mode.get_grind_quiz(session_id, num_questions=questions_per_round)
+            
+            if not quiz:
+                print("❌ Failed to generate quiz")
+                continue
+            
+            # Simulate answers based on performance probability
+            results = [random.random() < simulate_performance for _ in quiz.questions]
+            
+            grind_mode.submit_grind_results(session_id, results)
+        
+        # Final stats
+        print(f"\n{'═'*60}")
+        print(f"🏁 GRIND SESSION COMPLETE")
+        print(f"{'═'*60}")
+        grind_mode.display_stats(session_id)
+    
+    @staticmethod
+    def quick_demo(
+        agent,
+        engine,
+        pdf_id: str,
+        topic: str,
+        difficulty: str = "MEDIUM",
+        dynamic_difficulty: bool = True,
+        num_rounds: int = 3
+    ) -> str:
+        """
+        Run quick demo of grind mode functionality.
+        
+        Args:
+            agent: QuizAgent instance
+            engine: AdaptiveLogic engine
+            pdf_id: PDF source identifier
+            topic: Topic for quizzes
+            difficulty: Starting difficulty
+            dynamic_difficulty: Enable dynamic difficulty
+            num_rounds: Number of quiz rounds
+            
+        Returns:
+            session_id: The demo session ID
+        """
+        grind = GrindMode(agent, engine)
+        
+        print(f"\n{'═'*60}")
+        print(f"🏋️ QUICK GRIND DEMO")
+        print(f"{'═'*60}")
+        
+        session = grind.start_grind_session(
+            user_id="demo_user",
+            pdf_id=pdf_id,
+            topic=topic,
+            difficulty=difficulty,
+            dynamic_difficulty=dynamic_difficulty
+        )
+        
+        GrindPracticeRunner.run_practice_loop(
+            grind, session, num_rounds=num_rounds, simulate_performance=0.8
+        )
+        
+        return session
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
-# PRACTICE LOOP HELPERS
+# MODULE-LEVEL FUNCTIONS (Backward Compatibility)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def grind_practice_loop(
@@ -362,50 +464,10 @@ def grind_practice_loop(
     simulate_performance: float = 0.8,
     questions_per_round: int = 5
 ):
-    """
-    Automated practice loop for demonstration or testing.
-    
-    Args:
-        grind_mode: GrindMode instance
-        session_id: Session identifier
-        num_rounds: Number of quiz rounds (default: 3)
-        simulate_performance: Probability of correct answer (default: 0.8)
-        questions_per_round: Questions per quiz (default: 5)
-    """
-    print(f"\n{'═'*60}")
-    print(f"🏋️ GRIND ZONE - {num_rounds} Rounds")
-    print(f"{'═'*60}")
-    
-    state = grind_mode.engine.get_session_state(session_id)
-    config = state.get("grind_config", grind_mode.config)
-    
-    dynamic_str = "dynamic" if config.get("dynamic_enabled", True) else "fixed"
-    print(f"  Difficulty: {state['current_difficulty']} ({dynamic_str})")
-    print(f"  Topic: {state['topic']}")
-    
-    initial_difficulty = state["current_difficulty"]
-    
-    for round_num in range(1, num_rounds + 1):
-        print(f"\n{'─'*40}")
-        print(f"📝 Round {round_num}/{num_rounds}")
-        print(f"{'─'*40}")
-        
-        quiz = grind_mode.get_grind_quiz(session_id, num_questions=questions_per_round)
-        
-        if not quiz:
-            print("❌ Failed to generate quiz")
-            continue
-        
-        # Simulate answers based on performance probability
-        results = [random.random() < simulate_performance for _ in quiz.questions]
-        
-        grind_mode.submit_grind_results(session_id, results)
-    
-    # Final stats
-    print(f"\n{'═'*60}")
-    print(f"🏁 GRIND SESSION COMPLETE")
-    print(f"{'═'*60}")
-    grind_mode.display_stats(session_id)
+    """Automated practice loop for demonstration or testing."""
+    GrindPracticeRunner.run_practice_loop(
+        grind_mode, session_id, num_rounds, simulate_performance, questions_per_round
+    )
 
 
 def quick_grind_demo(
@@ -416,36 +478,8 @@ def quick_grind_demo(
     difficulty: str = "MEDIUM",
     dynamic_difficulty: bool = True,
     num_rounds: int = 3
-):
-    """
-    Quick demo of grind mode functionality.
-    
-    Args:
-        agent: QuizAgent instance
-        engine: AdaptiveLogic engine
-        pdf_id: PDF source identifier
-        topic: Topic for quizzes
-        difficulty: Starting difficulty (default: MEDIUM)
-        dynamic_difficulty: Enable dynamic difficulty (default: True)
-        num_rounds: Number of quiz rounds (default: 3)
-        
-    Returns:
-        session_id: The demo session ID
-    """
-    grind = GrindMode(agent, engine)
-    
-    print(f"\n{'═'*60}")
-    print(f"🏋️ QUICK GRIND DEMO")
-    print(f"{'═'*60}")
-    
-    session = grind.start_grind_session(
-        user_id="demo_user",
-        pdf_id=pdf_id,
-        topic=topic,
-        difficulty=difficulty,
-        dynamic_difficulty=dynamic_difficulty
+) -> str:
+    """Quick demo of grind mode functionality."""
+    return GrindPracticeRunner.quick_demo(
+        agent, engine, pdf_id, topic, difficulty, dynamic_difficulty, num_rounds
     )
-    
-    grind_practice_loop(grind, session, num_rounds=num_rounds, simulate_performance=0.8)
-    
-    return session
