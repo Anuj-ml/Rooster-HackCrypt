@@ -98,3 +98,4 @@ python backend/demo.py
 ```
 *   **Option 1 (Ingestion)**: Upload new learning material.
 *   **Option 2 (Adaptive Mode)**: Experience the AI adjusting to your skill level.
+*   **Option 3 (Grind Mode)**: Practice the topics in which you struggle
