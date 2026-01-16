@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any
 from langchain_core.documents import Document
-from langchain_core.pydantic_v1 import BaseModel, Field
+# from langchain_core.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 import uuid
 
 # --- Output Schemas for LLM ---

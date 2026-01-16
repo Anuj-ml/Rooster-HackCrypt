@@ -21,3 +21,5 @@ pillow
 
 # Utilities
 python-dotenv
+
+processor

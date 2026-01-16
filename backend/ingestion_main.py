@@ -1,26 +1,33 @@
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-
+# from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_groq import ChatGroq
 # Import your custom modules
-from processor import DocumentProcessor
+from pre_processor import DocumentProcessor
 from storage import KnowledgeBase
 from agent import QuizAgent
 
 # Load environment variables
 load_dotenv()
 
-# --- 1. Configuration ---
-# Gemini 1.5 Flash is excellent for high-volume tasks like RAG and Quizzing
-LLM_MODEL = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
+import os
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+
+load_dotenv()
+
+# GROQ CONFIGURATION (FREE & FAST)
+LLM_MODEL = ChatGroq(
+    model="llama-3.1-8b-instant",  # Best for reasoning
     temperature=0,
-    convert_system_message_to_human=True # Sometimes needed for older LangChain versions
+    groq_api_key=os.getenv("GROQ_API_KEY")
 )
 
-# Use Google's optimized embedding model
-EMBEDDING_MODEL = GoogleGenerativeAIEmbeddings(
-    model="models/text-embedding-004" # Or "models/embedding-001"
+# For embeddings, use HuggingFace (free & local)
+from langchain_huggingface import HuggingFaceEmbeddings
+
+EMBEDDING_MODEL = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
 # --- 2. Dependency Injection ---
@@ -81,13 +88,22 @@ def student_request_quiz(session_id: str, pdf_id: str, topic: str):
         
     return final_quiz
 
+def main():
+    ch = int(input("Enter what to do"))
+    if ch == 1:
+        upload_new_material('C:/College/Hackathons/HackCrypt/Rooster-HackCrypt/backend/data/',1)
+    else:
+        topic = None
+        student_request_quiz(1,1,topic)
+
+
 # --- 4. Execution ---
 if __name__ == "__main__":
     # Example Workflow
     
     # 1. Simulate Teacher Upload
-    # upload_new_material("data/physics_chapter_4.pdf", "phy_004")
+    # upload_new_material(r"C:\College\Hackathons\HackCrypt\Rooster-HackCrypt\backend\data\Module 3.pdf", "eco_003")
     
     # 2. Simulate Student Quiz
-    # quiz = student_request_quiz("sess_user_123", "phy_004", "Newton's Third Law")
+    # quiz = student_request_quiz("sess_user_123", "eco_003", "Measures taken to grow Indian Economy ")
     pass
