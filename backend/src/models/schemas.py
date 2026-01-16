@@ -63,6 +63,51 @@ class AnalysisRequest(BaseModel):
     """Input schema for AI Sensei session analysis."""
     results: List[QuizResultItem] = Field(description="List of quiz results to analyze")
 
+
+# --- Multiplayer Schemas ---
+class CreateRoomRequest(BaseModel):
+    """Input schema for creating a multiplayer room."""
+    host_id: str = Field(description="User ID of the room host")
+    topic: str = Field(default="default", description="Quiz topic")
+    pdf_source_id: str = Field(description="Source material ID")
+    num_questions: int = Field(default=5, ge=3, le=10, description="Number of questions (3-10)")
+
+
+class JoinRoomRequest(BaseModel):
+    """Input schema for joining a room."""
+    room_code: str = Field(description="6-character room code")
+    user_id: str = Field(description="User ID joining the room")
+
+
+class SubmitAnswerRequest(BaseModel):
+    """Input schema for submitting an answer in multiplayer."""
+    room_code: str = Field(description="Room code")
+    user_id: str = Field(description="User ID")
+    question_index: int = Field(ge=0, description="Question index (0-based)")
+    answer: str = Field(description="Player's answer")
+    time_taken: float = Field(ge=0, description="Time taken in seconds")
+
+
+# --- Study Group Schemas ---
+class CreateGroupRequest(BaseModel):
+    """Input schema for creating a study group."""
+    name: str = Field(description="Group name", min_length=3, max_length=50)
+    creator_id: str = Field(description="User ID of the creator")
+
+
+class JoinGroupRequest(BaseModel):
+    """Input schema for joining a study group."""
+    group_id: str = Field(description="Group ID to join")
+    user_id: str = Field(description="User ID joining")
+
+
+class UploadGroupResourceRequest(BaseModel):
+    """Input schema for uploading a resource to a group."""
+    group_id: str = Field(description="Group ID")
+    uploaded_by: str = Field(description="User ID uploading")
+    title: str = Field(description="Resource title")
+
+
 # --- Agent State Schema ---
 class AgentState(BaseModel):
     """The shared state for the LangGraph workflow."""

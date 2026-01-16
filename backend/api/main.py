@@ -40,6 +40,7 @@ from api.routers import (
     doubt_solver_router,
     smart_learning_router
 )
+from api.routers.groups import router as groups_router
 from api.services.file_handler import get_file_handler
 
 
@@ -112,6 +113,7 @@ app.include_router(quiz_router, prefix="/api/v1")
 app.include_router(flashnotes_router, prefix="/api/v1")
 app.include_router(doubt_solver_router, prefix="/api/v1")
 app.include_router(smart_learning_router, prefix="/api/v1")
+app.include_router(groups_router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Root"])
