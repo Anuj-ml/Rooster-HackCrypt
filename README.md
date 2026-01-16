@@ -13,8 +13,7 @@ Rooster-HackCrypt converts learning material into a searchable knowledge base an
 
 - Are **grounded in your source content** via Retrieval-Augmented Generation (RAG)
 - Support **adaptive difficulty** (keeps learners in “flow”) or fixed **grind mode** practice
-- Provide **instant flash-note generation** (zero LLM cost cheat sheets)
-- Work from multiple material sources:
+- Provide **instant flash-note generation** (zero LLM cost cheat sheets)- Offer **AI-powered doubt solving** with ELI5 explanations- Work from multiple material sources:
     - **PDFs**
     - **YouTube videos** (transcripts)
     - **Syllabus topics** (LLM-generated chapter text)
@@ -67,9 +66,10 @@ At a high level, the system is split into:
 2. **Knowledge base**: persistent store for retrieval (vector + docstore)
 3. **Quiz agent**: retrieves context + prompts LLM → structured quiz output
 4. **Flash-note generator**: retrieves raw propositions for instant cheat sheets (zero LLM cost)
-5. **Session engines**: track learner state, difficulty, mastery over time
-6. **FastAPI REST API**: Exposes all features via HTTP endpoints
-7. **CLI demo**: ties everything together end-to-end
+5. **Doubt solver**: AI tutor that provides ELI5 explanations for student questions
+6. **Session engines**: track learner state, difficulty, mastery over time
+7. **FastAPI REST API**: Exposes all features via HTTP endpoints
+8. **CLI demo**: ties everything together end-to-end
 
 ### Component Map
 
@@ -106,8 +106,11 @@ At a high level, the system is split into:
 ┌───────────────────────────────┐              │
 │ AdaptiveLogic / Difficulty    │◄─────────────┘
 │ src/core/logic_engine.py      │
-│ src/core/difficulty_engine.py │
-└───────────────────────────────┘
+│ src/core/difficulty_engine.py │  ┌────────────────────────────┐
+└───────────────────────────────┘  │ DoubtSolverAgent (NEW)     │
+                                   │ src/features/doubt_solver  │
+                                   │ ELI5 explanations          │
+                                   └────────────────────────────┘
 ```
 
 ---
@@ -179,7 +182,8 @@ Recommended approach:
 │  │  │  ├─ materials.py         # Material listing
 │  │  │  ├─ ingestion.py         # PDF/YouTube/Syllabus upload
 │  │  │  ├─ quiz.py              # Quiz & session management
-│  │  │  └─ flashnotes.py        # Flash-note generation (NEW)
+│  │  │  ├─ flashnotes.py        # Flash-note generation
+│  │  │  └─ doubt_solver.py      # Doubt solver (NEW)
 │  │  ├─ services/               # Business logic
 │  │  ├─ models/                 # Pydantic request/response models
 │  │  └─ middleware/             # Error handling
@@ -187,6 +191,9 @@ Recommended approach:
 │  │  ├─ agents/                 # LangGraph quiz agent
 │  │  ├─ core/                   # Adaptive engine + difficulty config
 │  │  ├─ features/               # Quiz/session + flash-note generator (NEW)
+│  │  │  ├─ quiz_generation_main.py
+│  │  │  ├─ flash_note_generator.py
+│  │  │  └─ doubt_solver.py      # AI tutor (NEW)
 │  │  ├─ loaders/                # PDF/YouTube/Syllabus loaders
 │  │  ├─ rag/                    # ingestion + storage + preprocessing
 │  │  └─ models/                 # pydantic schemas
@@ -195,6 +202,7 @@ Recommended approach:
 ├─ data/                         # additional caches/data (workspace-level)
 └─ docs/                         # design notes, checkpoints
    ├─ Flashcard_Readme.md        # Flash-note feature documentation (NEW)
+   ├─ DoubtSolver_Readme.md      # Doubt solver feature documentation (NEW)
    └─ ...
 ```
 
@@ -266,7 +274,8 @@ Server will start at `http://localhost:8000`
 - `POST /api/v1/ingest/youtube` - Ingest YouTube videos
 - `POST /api/v1/sessions/adaptive` - Create adaptive quiz session
 - `POST /api/v1/sessions/{id}/quiz` - Generate quiz
-- `GET /api/v1/cheat-sheet` - **Flash-note generator (NEW)**
+- `GET /api/v1/cheat-sheet` - **Flash-note generator**
+- `POST /api/v1/solve-doubt` - **AI tutor for doubts (NEW)**
 
 See [API_README.md](API_README.md) for complete API documentation.
 

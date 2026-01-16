@@ -26,6 +26,25 @@ class QuizQuestion(BaseModel):
 class QuizOutput(BaseModel):
     questions: List[QuizQuestion]
 
+# --- Doubt Solver Schemas ---
+class DoubtInput(BaseModel):
+    """Input schema for doubt solver feature."""
+    question: str = Field(description="Student's question about the material")
+    pdf_source_id: str = Field(description="PDF source to search for answer")
+    session_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique session identifier")
+
+class DoubtState(BaseModel):
+    """State schema for doubt solver LangGraph workflow."""
+    session_id: str
+    pdf_source_id: str
+    user_query: str
+    retrieved_docs: List[Document] = []
+    answer: str = ""
+    simplification_level: str = "ELI5"  # Explain Like I'm 5
+    
+    class Config:
+        arbitrary_types_allowed = True
+
 # --- Agent State Schema ---
 class AgentState(BaseModel):
     """The shared state for the LangGraph workflow."""

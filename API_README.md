@@ -15,6 +15,7 @@ Complete REST API for the AI-Powered Adaptive Learning Engine.
   - [Materials](#materials-endpoints)
   - [Ingestion](#ingestion-endpoints)
   - [Sessions & Quizzes](#sessions--quizzes-endpoints)
+  - [Doubt Solver](#doubt-solver-endpoints)
 - [Request/Response Formats](#requestresponse-formats)
 - [Error Handling](#error-handling)
 - [Frontend Integration Guide](#frontend-integration-guide)
@@ -84,7 +85,8 @@ The Rooster-HackCrypt API provides endpoints for:
 | **Material Management** | List and manage indexed learning materials |
 | **Session Management** | Create adaptive or grind mode learning sessions |
 | **Quiz Generation** | Generate AI-powered quizzes from your materials |
-| **Flash-Note Generator** | ⚡ **NEW**: Instant cheat sheets with zero LLM cost |
+| **Flash-Note Generator** | ⚡ Instant cheat sheets with zero LLM cost |
+| **Doubt Solver** | 💡 **NEW**: ELI5 explanations for student questions |
 | **Progress Tracking** | Submit answers and track mastery scores |
 
 ---
@@ -528,6 +530,70 @@ Submit quiz answers and get feedback.
 
 ---
 
+### Doubt Solver Endpoints
+
+#### `POST /api/v1/solve-doubt`
+
+Solve a student's doubt with an ELI5 (Explain Like I'm 5) explanation.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "question": "What is photosynthesis?",
+  "pdf_source_id": "biology_textbook",
+  "session_id": "optional-uuid"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `question` | string | Yes | Student's question about the material |
+| `pdf_source_id` | string | Yes | Which material to search for answer |
+| `session_id` | string | No | Auto-generated if not provided |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Doubt solved successfully",
+  "data": {
+    "session_id": "abc-123-def-456",
+    "question": "What is photosynthesis?",
+    "answer": "Photosynthesis is like a plant's kitchen! Just like you need ingredients to make food, plants use sunlight (their main ingredient), water, and carbon dioxide from the air. They mix these together in their leaves to make sugar (their food) and release oxygen as a byproduct. It's like the plant is cooking its own meal using sunlight as the stove!",
+    "source_id": "biology_textbook",
+    "context_found": true
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Key Features:**
+- ✅ **ELI5 Explanations** - Simple, conversational language
+- ✅ **Grounded Answers** - Only uses uploaded material
+- ✅ **Real-World Analogies** - Makes concepts relatable
+- ✅ **No Hallucinations** - Won't make up information
+
+#### `GET /api/v1/solve-doubt/sources`
+
+List all available materials for doubt solving.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Found 3 available materials",
+  "data": {
+    "sources": ["biology_textbook", "chemistry_notes", "physics_lecture"],
+    "count": 3
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+---
+
 ### Flash-Note Generator Endpoints
 
 #### `GET /api/v1/cheat-sheet`
@@ -784,6 +850,19 @@ export const api = {
   
   getCheatSheetBySource: (sourceId: string, numFacts = 30) =>
     apiRequest(`/cheat-sheet/by-source/${sourceId}?num_facts=${numFacts}`),
+  
+  // Doubt Solver (NEW)
+  solveDoubt: (question: string, sourceId: string, sessionId?: string) =>
+    apiRequest('/solve-doubt', {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        pdf_source_id: sourceId,
+        session_id: sessionId,
+      }),
+    }),
+  
+  getDoubtSources: () => apiRequest('/solve-doubt/sources'),
 };
 ```
 
@@ -964,6 +1043,16 @@ export default {
   
   getCheatSheetBySource: (sourceId, numFacts = 30) =>
     client.get(`/cheat-sheet/by-source/${sourceId}`, { params: { num_facts: numFacts } }),
+  
+  // Doubt Solver (NEW)
+  solveDoubt: (question, sourceId, sessionId) =>
+    client.post('/solve-doubt', {
+      question,
+      pdf_source_id: sourceId,
+      session_id: sessionId,
+    }),
+  
+  getDoubtSources: () => client.get('/solve-doubt/sources'),
 };
   
   getQuiz: (sessionId, numQuestions = 5) =>
@@ -1014,6 +1103,14 @@ curl "http://localhost:8000/api/v1/cheat-sheet?topic=Neural%20Networks&num_facts
 
 # Generate cheat sheet by source (NEW)
 curl "http://localhost:8000/api/v1/cheat-sheet/by-source/my_doc?num_facts=25"
+
+# Solve a doubt (NEW)
+curl -X POST http://localhost:8000/api/v1/solve-doubt \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is photosynthesis?", "pdf_source_id": "biology_textbook"}'
+
+# List sources for doubt solving (NEW)
+curl http://localhost:8000/api/v1/solve-doubt/sources
 ```
 
 ### Python Examples
@@ -1069,6 +1166,18 @@ cheat_sheet = requests.get(
 print(f"Cheat Sheet ({cheat_sheet['data']['fact_count']} facts):")
 for fact in cheat_sheet['data']['cheat_sheet']:
     print(fact)
+
+# Solve a doubt (NEW)
+doubt = requests.post(
+    f"{API_BASE}/solve-doubt",
+    json={
+        "question": "What is photosynthesis?",
+        "pdf_source_id": "biology_textbook"
+    }
+).json()
+
+print(f"Question: {doubt['data']['question']}")
+print(f"Answer: {doubt['data']['answer']}")
 ```
 
 ---
