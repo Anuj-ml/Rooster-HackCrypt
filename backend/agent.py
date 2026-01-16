@@ -2,54 +2,121 @@ from langgraph.graph import StateGraph, END
 from schemas import AgentState, QuizOutput
 from langchain_core.prompts import ChatPromptTemplate
 
+
 class QuizAgent:
+    """
+    Quiz Generation Agent using LangGraph workflow.
+    
+    Workflow:
+    1. Retrieve relevant documents from knowledge base
+    2. Generate quiz questions using LLM with structured output
+    
+    Features:
+    - State machine architecture (LangGraph)
+    - Difficulty-aware question generation
+    - Strict formatting for clean quiz output
+    """
+    
     def __init__(self, llm, knowledge_base):
+        """
+        Initialize the QuizAgent.
+        
+        Args:
+            llm: Language model for quiz generation
+            knowledge_base: KnowledgeBase instance for document retrieval
+        """
         self.llm = llm
         self.kb = knowledge_base
         self.graph = self._build_graph()
 
     def _retrieve_node(self, state: AgentState):
-        """Node: Fetch data from Knowledge Base."""
+        """
+        Retrieve Node: Fetch relevant documents from Knowledge Base.
+        
+        Uses semantic search to find documents related to the topic.
+        """
+        print(f"   🔍 Retrieving context for: {state.topic}")
+        
         docs = self.kb.retrieve_context(
             query=state.topic,
             pdf_source_id=state.pdf_source_id
         )
-        # Update state (Pydantic model requires strict type, so we return dict to update)
+        
+        if docs:
+            print(f"   ✓ Retrieved {len(docs)} relevant documents")
+        else:
+            print(f"   ⚠ No documents found for topic: {state.topic}")
+        
         return {"retrieved_docs": docs}
 
     def _generate_node(self, state: AgentState):
-        """Node: Generate Quiz JSON."""
+        """
+        Generate Node: Create quiz questions using LLM.
+        
+        Uses strict formatting prompt to ensure clean output.
+        """
         if not state.retrieved_docs:
-            return {"generated_quiz": None} # Or handle error
+            print(f"   ✗ No context available for quiz generation")
+            return {"generated_quiz": None}
 
         context_str = "\n\n".join([d.page_content for d in state.retrieved_docs if d])
         
-        prompt = ChatPromptTemplate.from_template("""
-        You are a strict quiz generator.
-        Context: {context}
+        # Strict formatting prompt for clean quiz output
+        prompt = ChatPromptTemplate.from_template("""You are a strict quiz generator. Create EXACTLY 5 multiple choice questions.
+
+CRITICAL FORMATTING RULES (MUST FOLLOW):
+1. Each question must have EXACTLY 4 options
+2. Options must be PLAIN TEXT only - absolutely NO prefixes like "A)", "1.", "(a)", "Option 1:", etc.
+3. Each option should be a complete, standalone answer text
+4. The correct_answer field must EXACTLY match one of the 4 options word-for-word
+5. Questions should be self-contained - never reference "the passage" or "according to the text"
+6. Explanations should be concise but informative (1-2 sentences)
+
+DIFFICULTY GUIDELINES:
+- EASY: Basic recall questions, straightforward facts from the context
+- MEDIUM: Understanding and application, some analysis required
+- HARD: Complex analysis, synthesis of multiple concepts, deeper reasoning
+
+CONTEXT:
+{context}
+
+TASK:
+Generate 5 {difficulty} difficulty questions about "{topic}" based on the context above.
+
+Remember:
+- Options should be plain text without any numbering or lettering
+- The correct_answer must exactly match one option
+- Questions should test understanding, not just memorization""")
         
-        Task: Create 5 {difficulty} multiple choice questions about "{topic}".
-        Ensure questions require reasoning based on the context.
-        """)
+        print(f"   🧠 Generating {state.current_difficulty} questions...")
         
-        chain = prompt | self.llm.with_structured_output(QuizOutput)
-        
-        response = chain.invoke({
-            "context": context_str,
-            "difficulty": state.current_difficulty,
-            "topic": state.topic
-        })
-        
-        return {"generated_quiz": response}
+        try:
+            chain = prompt | self.llm.with_structured_output(QuizOutput)
+            
+            response = chain.invoke({
+                "context": context_str,
+                "difficulty": state.current_difficulty,
+                "topic": state.topic
+            })
+            
+            if response and response.questions:
+                print(f"   ✓ Generated {len(response.questions)} questions")
+            
+            return {"generated_quiz": response}
+            
+        except Exception as e:
+            print(f"   ✗ Quiz generation failed: {str(e)[:100]}")
+            return {"generated_quiz": None}
 
     def _build_graph(self):
+        """Build the LangGraph workflow."""
         workflow = StateGraph(AgentState)
         
         # Add Nodes
         workflow.add_node("retrieve", self._retrieve_node)
         workflow.add_node("generate", self._generate_node)
         
-        # Define Edges
+        # Define Edges: retrieve → generate → END
         workflow.set_entry_point("retrieve")
         workflow.add_edge("retrieve", "generate")
         workflow.add_edge("generate", END)

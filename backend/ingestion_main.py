@@ -1,110 +1,227 @@
-import os
-from dotenv import load_dotenv
-# from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_groq import ChatGroq
-# Import your custom modules
-from pre_processor import DocumentProcessor
-from storage import KnowledgeBase
-from agent import QuizAgent
+# backend/ingestion_main.py
 
-# Load environment variables
+"""
+Rooster-HackCrypt: Document Ingestion Module
+
+This module handles ONLY document ingestion operations:
+1. PDF upload and processing
+2. Proposition decomposition
+3. Knowledge base indexing
+
+For quiz generation and session management, use quiz_generation_main.py
+For grind mode functionality, use grind_mode.py
+"""
+
+import os
+from typing import List
+from dotenv import load_dotenv
+
+# Load environment variables first
 load_dotenv()
 
-import os
-from dotenv import load_dotenv
+# --- Model Configuration ---
 from langchain_groq import ChatGroq
-
-load_dotenv()
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # GROQ CONFIGURATION (FREE & FAST)
 LLM_MODEL = ChatGroq(
-    model="llama-3.1-8b-instant",  # Best for reasoning
+    model="llama-3.1-8b-instant",
     temperature=0,
     groq_api_key=os.getenv("GROQ_API_KEY")
 )
 
-# For embeddings, use HuggingFace (free & local)
-from langchain_huggingface import HuggingFaceEmbeddings
-
+# HuggingFace Embeddings (FREE & LOCAL)
 EMBEDDING_MODEL = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
-# --- 2. Dependency Injection ---
-# Initialize Processor with Gemini
-processor = DocumentProcessor(llm_model=LLM_MODEL)
+# --- Import Custom Modules ---
+from pre_processor import DocumentProcessor
+from storage import KnowledgeBase
 
-# Initialize KnowledgeBase with Google Embeddings
-# (Note: We pass the embedding model here to keep storage.py clean)
+# --- Initialize Components ---
+processor = DocumentProcessor(llm_model=LLM_MODEL)
 kb = KnowledgeBase(embedding_model=EMBEDDING_MODEL)
 
-# Initialize Agent with Gemini and the KB
-agent = QuizAgent(llm=LLM_MODEL, knowledge_base=kb)
 
-# --- 3. Workflow Functions ---
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOCUMENT INGESTION
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def upload_new_material(pdf_path: str, source_id: str):
+def upload_new_material(
+    pdf_path: str,
+    source_id: str,
+    chunk_size: int = 3000,
+    chunk_overlap: int = 200
+):
     """
-    Teacher uploads a PDF.
+    Teacher uploads a PDF for quiz generation.
+    
+    Process:
+    1. Load PDF and split into chunks
+    2. Generate propositions (atomic facts) using LLM
+    3. Index in knowledge base (ChromaDB + Pickle)
+    
+    Args:
+        pdf_path: Path to the PDF file
+        source_id: Unique identifier for this PDF
+        chunk_size: Size of text chunks for processing (default: 3000)
+        chunk_overlap: Overlap between chunks (default: 200)
+        
+    Returns:
+        Dictionary with upload statistics
+        
+    Example:
+        upload_new_material("ip_data/Module 3.pdf", "eco_101")
     """
-    print(f"--- Processing: {pdf_path} ---")
+    print(f"\n{'='*60}")
+    print(f"📄 UPLOADING PDF: {pdf_path}")
+    print(f"{'='*60}")
     
     # Step 1: Load & Split
+    print("\n📖 Step 1: Loading and splitting PDF...")
     parent_docs = processor.load_and_split(pdf_path)
-    print(f"Split into {len(parent_docs)} parent chunks.")
+    print(f"   ✓ Split into {len(parent_docs)} parent chunks")
     
-    # Step 2: Decompose (Using Gemini 1.5 Flash)
-    # Flash is very fast at this specific task
+    # Step 2: Decompose into propositions
+    print("\n🔬 Step 2: Decomposing into propositions...")
     propositions = processor.generate_propositions(parent_docs)
+    total_props = sum(len(p) for p in propositions)
+    print(f"   ✓ Generated {total_props} propositions")
     
-    # Step 3: Index
+    # Step 3: Index in knowledge base
+    print("\n💾 Step 3: Indexing in knowledge base...")
     kb.index_document(parent_docs, propositions, source_id)
-    print("Upload and Indexing Complete!")
-
-def student_request_quiz(session_id: str, pdf_id: str, topic: str):
-    """
-    Student requests a quiz in the Adaptive Session.
-    """
-    print(f"--- Starting Quiz Session: {topic} ---")
     
-    input_data = {
-        "session_id": session_id,
-        "pdf_source_id": pdf_id,
-        "current_difficulty": "HARD", # In a real app, fetch this from your 'AdaptiveSessions' DB
-        "topic": topic
+    print(f"\n{'='*60}")
+    print(f"✅ Upload Complete!")
+    print(f"   Source ID: {source_id}")
+    print(f"   Documents: {len(parent_docs)}")
+    print(f"   Propositions: {total_props}")
+    print(f"{'='*60}")
+    
+    return {
+        "source_id": source_id,
+        "num_documents": len(parent_docs),
+        "num_propositions": total_props,
+        "pdf_path": pdf_path
     }
+
+
+def list_indexed_pdfs() -> List[str]:
+    """
+    List all indexed PDF source IDs.
     
-    result = agent.run_session(input_data)
+    Returns:
+        List of PDF source IDs
+    """
+    sources = kb.get_all_pdf_sources()
     
-    # The result contains the Pydantic object
-    final_quiz = result['generated_quiz']
+    print(f"\n📚 Indexed PDFs: {len(sources)}")
+    for src in sources:
+        print(f"   • {src}")
     
-    if final_quiz:
-        print(f"Successfully generated {len(final_quiz.questions)} questions.")
-        # Debug: Print first question
-        print(f"Q1: {final_quiz.questions[0].question}")
-    else:
-        print("Failed to generate quiz (No context found or LLM error).")
+    return sources
+
+
+def get_indexed_count() -> int:
+    """
+    Get the count of indexed PDFs.
+    
+    Returns:
+        Number of indexed PDFs
+    """
+    return len(kb.get_all_pdf_sources())
+
+
+def is_pdf_indexed(source_id: str) -> bool:
+    """
+    Check if a PDF is already indexed.
+    
+    Args:
+        source_id: PDF source identifier to check
         
-    return final_quiz
+    Returns:
+        True if indexed, False otherwise
+    """
+    sources = kb.get_all_pdf_sources()
+    return source_id in sources
 
-def main():
-    ch = int(input("Enter what to do"))
-    if ch == 1:
-        upload_new_material('C:/College/Hackathons/HackCrypt/Rooster-HackCrypt/backend/data/',1)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# KNOWLEDGE BASE ACCESS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_knowledge_base() -> KnowledgeBase:
+    """
+    Get the knowledge base instance for direct access.
+    
+    Useful for advanced queries or when other modules need KB access.
+    
+    Returns:
+        KnowledgeBase instance
+    """
+    return kb
+
+
+def get_processor() -> DocumentProcessor:
+    """
+    Get the document processor instance for direct access.
+    
+    Useful for custom processing workflows.
+    
+    Returns:
+        DocumentProcessor instance
+    """
+    return processor
+
+
+def get_llm_model():
+    """
+    Get the LLM model instance.
+    
+    Returns:
+        ChatGroq LLM instance
+    """
+    return LLM_MODEL
+
+
+def get_embedding_model():
+    """
+    Get the embedding model instance.
+    
+    Returns:
+        HuggingFaceEmbeddings instance
+    """
+    return EMBEDDING_MODEL
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN EXECUTION
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def run_demo():
+    """Run a quick ingestion demo."""
+    print(f"\n{'═'*60}")
+    print(f"🐓 ROOSTER-HACKCRYPT - INGESTION MODULE")
+    print(f"{'═'*60}")
+    
+    # Check indexed PDFs
+    sources = list_indexed_pdfs()
+    
+    if not sources:
+        print("\n⚠️ No PDFs indexed!")
+        print("   Run: upload_new_material('path/to/file.pdf', 'source_id')")
+        print("\n   Example:")
+        print("   >>> from ingestion_main import upload_new_material")
+        print("   >>> upload_new_material('ip_data/Module 3.pdf', 'eco_101')")
     else:
-        topic = None
-        student_request_quiz(1,1,topic)
+        print(f"\n✅ {len(sources)} PDF(s) indexed and ready for quiz generation.")
+        print("\n   To generate quizzes, use quiz_generation_main.py:")
+        print("   >>> from quiz_generation_main import start_student_session, get_next_quiz_batch")
+        print(f"   >>> session = start_student_session('user', '{sources[0]}', 'your_topic')")
+        print("   >>> quiz = get_next_quiz_batch(session)")
 
 
-# --- 4. Execution ---
 if __name__ == "__main__":
-    # Example Workflow
-    
-    # 1. Simulate Teacher Upload
-    # upload_new_material(r"C:\College\Hackathons\HackCrypt\Rooster-HackCrypt\backend\ip_data\Module 3.pdf", "eco_003")
-    
-    # 2. Simulate Student Quiz
-    # quiz = student_request_quiz("sess_user_123", "eco_003", "Measures taken to grow Indian Economy ")
-    # print(quiz)
-    pass
+    run_demo()

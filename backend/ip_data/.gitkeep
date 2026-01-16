@@ -1,0 +1,6 @@
+# This directory contains input PDF files for processing
+# Place your PDF files here before running upload_new_material()
+#
+# Example usage:
+#   from ingestion_main import upload_new_material
+#   upload_new_material("ip_data/your_file.pdf", "your_source_id")
