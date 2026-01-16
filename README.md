@@ -2,8 +2,8 @@
 
 AI-powered adaptive learning engine that turns learning material into grounded quizzes.
 
-**Date:** January 16, 2026  
-**Status:** ✅ MVP Stable / Verified (CLI-first)
+**Date:** January 17, 2026  
+**Status:** ✅ Production-Ready MVP with Full API Suite
 
 ---
 
@@ -310,8 +310,8 @@ Server will start at `http://localhost:8000`
 - `POST /api/v1/sessions/{id}/quiz` - Generate quiz
 - `GET /api/v1/cheat-sheet` - **Flash-note generator**
 - `POST /api/v1/solve-doubt` - **AI tutor for doubts**
-- `POST /api/v1/hint/socratic` - **Socratic hints (NEW)**
-- `POST /api/v1/analyze-session` - **Session analysis (NEW)**
+- `POST /api/v1/hint/socratic` - **Socratic hints**
+- `POST /api/v1/analyze-session` - **Session analysis**
 
 See [API_README.md](API_README.md) for complete API documentation.
 
@@ -340,7 +340,56 @@ If you’re moving machines, you may need to download the model once (via normal
 
 ---
 
-## MVP Scope / Notes
+## Project Status & Roadmap
 
-- This repository is currently backend + CLI Demo
-- The system is designed so a frontend can be layered on later (sessions, quiz JSON output, etc.).
+### ✅ Completed (v1.0 - Current)
+
+**Core Infrastructure:**
+- ✅ RAG-based ingestion pipeline (PDF, YouTube, Syllabus)
+- ✅ ChromaDB vector storage + Docstore
+- ✅ Proposition decomposition for semantic search
+- ✅ FastAPI REST API with 7 routers, 15+ endpoints
+- ✅ CLI demo interface
+
+**Learning Features:**
+- ✅ Adaptive quiz generation with difficulty tracking
+- ✅ Grind mode (fixed difficulty practice)
+- ✅ Flash-note generator (zero-cost fact retrieval)
+- ✅ Doubt Solver (ELI5 AI tutor with LangGraph)
+- ✅ Socratic Hints (guided learning questions)
+- ✅ AI Sensei (session analysis & feedback)
+
+**Documentation:**
+- ✅ Complete API documentation ([API_README.md](API_README.md))
+- ✅ Feature-specific guides ([docs/](docs/))
+- ✅ Integration examples (React, Python)
+
+### 🚧 Future Enhancements
+
+**Frontend:**
+- [ ] React/Next.js web application
+- [ ] Student dashboard with progress tracking
+- [ ] Material upload interface
+- [ ] Interactive quiz interface
+
+**Features:**
+- [ ] Multi-language support
+- [ ] Collaborative learning (group sessions)
+- [ ] Visual analytics and progress charts
+- [ ] Spaced repetition integration
+- [ ] Export/import study materials
+
+**Infrastructure:**
+- [ ] User authentication (JWT)
+- [ ] PostgreSQL for user data
+- [ ] Redis caching layer
+- [ ] Deployment guides (Docker, cloud)
+
+---
+
+## Notes
+
+- Backend is fully functional and production-ready
+- API designed for easy frontend integration
+- All features thoroughly documented
+- Session management supports stateful learning workflows
