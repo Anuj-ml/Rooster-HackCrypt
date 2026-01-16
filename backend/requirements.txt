@@ -1,0 +1,23 @@
+# Core
+langchain>=0.1.0
+langgraph>=0.0.40
+
+# Vector DB
+chromadb>=0.4.24
+
+# LLMs
+langchain-google-genai
+langchain-community
+
+# Embeddings (free)
+sentence-transformers
+
+# PDF + OCR
+unstructured[pdf]
+pypdf
+pytesseract
+pdf2image
+pillow
+
+# Utilities
+python-dotenv
