@@ -47,6 +47,12 @@ The core idea: store *semantic facts* (propositions) for retrieval, enable both 
 - **AI Sensei**: Session analysis with personalized feedback
 - **Pattern Recognition**: Identifies knowledge gaps and misconceptions
 
+### 👥 Study Groups (NEW!)
+- **Collaborative Learning**: Form groups of up to 2 students
+- **Shared Resources**: Upload PDFs accessible to all group members
+- **Automatic Ingestion**: Uploaded materials indexed for quizzes
+- **Group Management**: Create, join, and manage study groups
+
 ---
 
 ## Core Concepts (The “Why”)
@@ -312,6 +318,12 @@ Server will start at `http://localhost:8000`
 - `POST /api/v1/solve-doubt` - **AI tutor for doubts**
 - `POST /api/v1/hint/socratic` - **Socratic hints**
 - `POST /api/v1/analyze-session` - **Session analysis**
+- `POST /api/v1/groups/create` - **Create study group (NEW!)**
+- `POST /api/v1/groups/join` - **Join study group (NEW!)**
+- `GET /api/v1/groups` - **List all study groups (NEW!)**
+- `GET /api/v1/groups/{group_id}` - **Get study group details (NEW!)**
+- `POST /api/v1/groups/{group_id}/upload` - **Upload shared resources (NEW!)**
+- `GET /api/v1/groups/{group_id}/resources` - **List group resources (NEW!)**
 
 See [API_README.md](API_README.md) for complete API documentation.
 
@@ -358,6 +370,7 @@ If you’re moving machines, you may need to download the model once (via normal
 - ✅ Doubt Solver (ELI5 AI tutor with LangGraph)
 - ✅ Socratic Hints (guided learning questions)
 - ✅ AI Sensei (session analysis & feedback)
+- ✅ **Study Groups** - Collaborative learning with shared resources
 
 **Documentation:**
 - ✅ Complete API documentation ([API_README.md](API_README.md))
@@ -371,6 +384,7 @@ If you’re moving machines, you may need to download the model once (via normal
 - [ ] Student dashboard with progress tracking
 - [ ] Material upload interface
 - [ ] Interactive quiz interface
+- [ ] Study group management UI
 
 **Features:**
 - [ ] Multi-language support
@@ -378,6 +392,7 @@ If you’re moving machines, you may need to download the model once (via normal
 - [ ] Visual analytics and progress charts
 - [ ] Spaced repetition integration
 - [ ] Export/import study materials
+- [ ] Enhanced group features (chat, shared notes)
 
 **Infrastructure:**
 - [ ] User authentication (JWT)
