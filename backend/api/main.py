@@ -35,7 +35,8 @@ from api.routers import (
     health_router,
     materials_router,
     ingestion_router,
-    quiz_router
+    quiz_router,
+    flashnotes_router
 )
 from api.services.file_handler import get_file_handler
 
@@ -106,6 +107,7 @@ app.include_router(health_router, prefix="/api")
 app.include_router(materials_router, prefix="/api/v1")
 app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(quiz_router, prefix="/api/v1")
+app.include_router(flashnotes_router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Root"])

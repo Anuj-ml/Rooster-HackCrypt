@@ -69,5 +69,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# API temp uploads
+backend/api/temp_uploads/
+backend/api/logs/
 
 # backend/testing/

@@ -178,6 +178,68 @@ class KnowledgeBase:
         print(f"   ✓ Retrieved {num_to_retrieve} random documents from entire source")
         return selected_docs
     
+    def get_raw_propositions(self, query: str, pdf_source_id: str = None, k: int = 20) -> List[str]:
+        """
+        Retrieve raw propositions (atomic facts) directly from ChromaDB.
+        Unlike retrieve_context(), this returns the propositions themselves, not parent documents.
+        Perfect for flash-note generation without LLM tokens.
+        
+        Args:
+            query: Search query or "default" for random facts
+            pdf_source_id: Optional source filter
+            k: Number of propositions to retrieve (default: 20)
+            
+        Returns:
+            List of proposition strings
+        """
+        # Build filter if source specified
+        filter_dict = {"pdf_source_id": pdf_source_id} if pdf_source_id else None
+        
+        # Handle "default" query - get random propositions
+        if query.lower() == "default" and pdf_source_id:
+            # Get all propositions for this source, then sample randomly
+            try:
+                all_results = self.vectorstore.get(
+                    where=filter_dict,
+                    limit=k * 3  # Get more to ensure enough after filtering
+                )
+                
+                if all_results and 'documents' in all_results and all_results['documents']:
+                    import random
+                    documents = all_results['documents']
+                    # Return random sample
+                    num_to_return = min(k, len(documents))
+                    return random.sample(documents, num_to_return)
+                else:
+                    print(f"⚠ No propositions found for source: '{pdf_source_id}'")
+                    return []
+            except Exception as e:
+                print(f"⚠ Error retrieving propositions: {e}")
+                # Fallback to similarity search with generic query
+                query = "information facts key points"
+        
+        # Standard similarity search
+        try:
+            results = self.vectorstore.similarity_search(
+                query,
+                k=k,
+                filter=filter_dict
+            )
+            
+            if not results:
+                print(f"⚠ No propositions found for query: '{query}'")
+                return []
+            
+            # Extract page_content (the propositions themselves)
+            propositions = [doc.page_content for doc in results]
+            print(f"✓ Retrieved {len(propositions)} propositions for '{query}'")
+            
+            return propositions
+            
+        except Exception as e:
+            print(f"✗ Error in similarity search: {e}")
+            return []
+    
     def get_all_pdf_sources(self):
         """Get list of all indexed PDF source IDs."""
         # Get unique pdf_source_ids from vectorstore

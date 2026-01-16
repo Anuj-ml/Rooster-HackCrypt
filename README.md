@@ -13,12 +13,13 @@ Rooster-HackCrypt converts learning material into a searchable knowledge base an
 
 - Are **grounded in your source content** via Retrieval-Augmented Generation (RAG)
 - Support **adaptive difficulty** (keeps learners in “flow”) or fixed **grind mode** practice
+- Provide **instant flash-note generation** (zero LLM cost cheat sheets)
 - Work from multiple material sources:
     - **PDFs**
     - **YouTube videos** (transcripts)
     - **Syllabus topics** (LLM-generated chapter text)
 
-The core idea: store *semantic facts* (propositions) for retrieval, but present questions using full parent context.
+The core idea: store *semantic facts* (propositions) for retrieval, enable both quiz generation and instant fact access.
 
 ---
 
@@ -65,8 +66,10 @@ At a high level, the system is split into:
 1. **Ingestion service**: takes source material → produces parent chunks + propositions → indexes storage
 2. **Knowledge base**: persistent store for retrieval (vector + docstore)
 3. **Quiz agent**: retrieves context + prompts LLM → structured quiz output
-4. **Session engines**: track learner state, difficulty, mastery over time
-5. **CLI demo**: ties everything together end-to-end
+4. **Flash-note generator**: retrieves raw propositions for instant cheat sheets (zero LLM cost)
+5. **Session engines**: track learner state, difficulty, mastery over time
+6. **FastAPI REST API**: Exposes all features via HTTP endpoints
+7. **CLI demo**: ties everything together end-to-end
 
 ### Component Map
 
@@ -75,34 +78,36 @@ At a high level, the system is split into:
                     │   CLI Demo (Menu)     │
                     │ backend/testing/demo.py│
                     └───────────┬───────────┘
-                                            │
-                                            ▼
-                 ┌───────────────────────────┐
-                 │ IngestionService           │
-                 │ src/rag/ingestion_main.py  │
-                 └───────────┬───────────────┘
-                                         │  produces
-                                         │  parent chunks + propositions
-                                         ▼
-            ┌───────────────────────────────┐
-            │ KnowledgeBase                  │
-            │ src/rag/storage.py             │
-            │  - ChromaDB (propositions)     │
-            │  - Docstore (parent docs)      │
-            └───────────┬───────────────────┘
-                                    │ retrieves context
-                                    ▼
-            ┌───────────────────────────────┐
-            │ QuizAgent (LangGraph)          │
-            │ src/agents/agent.py            │
-            └───────────┬───────────────────┘
-                                    │ generates quizzes
-                                    ▼
-            ┌───────────────────────────────┐
-            │ AdaptiveLogic / Difficulty      │
-            │ src/core/logic_engine.py        │
-            │ src/core/difficulty_engine.py   │
-            └───────────────────────────────┘
+                                │
+                 ┌──────────────┴───────────────┐
+                 │                              │
+                 ▼                              ▼
+┌─────────────────────────────┐   ┌────────────────────────────┐
+│ IngestionService            │   │ FastAPI REST API           │
+│ src/rag/ingestion_main.py   │   │ backend/api/main.py        │
+└───────────┬─────────────────┘   └────────────┬───────────────┘
+            │ produces                          │
+            │ parent chunks + propositions      │
+            ▼                                   │
+┌───────────────────────────────┐              │
+│ KnowledgeBase                 │◄─────────────┘
+│ src/rag/storage.py            │
+│  - ChromaDB (propositions)    │
+│  - Docstore (parent docs)     │
+└───────────┬───────────────────┘
+            │ retrieves context
+            ▼
+┌───────────────────────────────┐
+│ QuizAgent (LangGraph)         │  ┌────────────────────────────┐
+│ src/agents/agent.py           │  │ FlashNoteGenerator         │
+└───────────┬───────────────────┘  │ src/features/flash_note... │
+            │ generates quizzes    └────────────┬───────────────┘
+            ▼                                   │ zero-cost facts
+┌───────────────────────────────┐              │
+│ AdaptiveLogic / Difficulty    │◄─────────────┘
+│ src/core/logic_engine.py      │
+│ src/core/difficulty_engine.py │
+└───────────────────────────────┘
 ```
 
 ---
@@ -162,12 +167,26 @@ Recommended approach:
 ```
 .
 ├─ README.md
+├─ API_README.md                 # FastAPI documentation
 ├─ backend/
 │  ├─ requirements.txt
+│  ├─ run_api.py                 # API server launcher
+│  ├─ api/                       # FastAPI application
+│  │  ├─ main.py                 # API entry point
+│  │  ├─ config.py               # Settings/environment
+│  │  ├─ routers/                # Endpoint routers
+│  │  │  ├─ health.py            # Health checks
+│  │  │  ├─ materials.py         # Material listing
+│  │  │  ├─ ingestion.py         # PDF/YouTube/Syllabus upload
+│  │  │  ├─ quiz.py              # Quiz & session management
+│  │  │  └─ flashnotes.py        # Flash-note generation (NEW)
+│  │  ├─ services/               # Business logic
+│  │  ├─ models/                 # Pydantic request/response models
+│  │  └─ middleware/             # Error handling
 │  ├─ src/
 │  │  ├─ agents/                 # LangGraph quiz agent
 │  │  ├─ core/                   # Adaptive engine + difficulty config
-│  │  ├─ features/               # Quiz/session orchestration
+│  │  ├─ features/               # Quiz/session + flash-note generator (NEW)
 │  │  ├─ loaders/                # PDF/YouTube/Syllabus loaders
 │  │  ├─ rag/                    # ingestion + storage + preprocessing
 │  │  └─ models/                 # pydantic schemas
@@ -175,6 +194,8 @@ Recommended approach:
 │  └─ data/                      # embedding cache (and optional local data)
 ├─ data/                         # additional caches/data (workspace-level)
 └─ docs/                         # design notes, checkpoints
+   ├─ Flashcard_Readme.md        # Flash-note feature documentation (NEW)
+   └─ ...
 ```
 
 ---
@@ -217,6 +238,37 @@ From the menu you can:
 - Run Grind Mode practice
 
 Tip: when prompted for topic, type `default` to generate questions from the entire selected source.
+
+---
+
+## Run (FastAPI Server)
+
+For frontend integration or API access:
+
+```bash
+cd backend
+
+# Activate virtual environment (Windows)
+..\venv\Scripts\Activate.ps1
+
+# Run the API server
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+Server will start at `http://localhost:8000`
+
+**Interactive Documentation:**
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+**Key Endpoints:**
+- `POST /api/v1/ingest/pdf` - Upload PDF files
+- `POST /api/v1/ingest/youtube` - Ingest YouTube videos
+- `POST /api/v1/sessions/adaptive` - Create adaptive quiz session
+- `POST /api/v1/sessions/{id}/quiz` - Generate quiz
+- `GET /api/v1/cheat-sheet` - **Flash-note generator (NEW)**
+
+See [API_README.md](API_README.md) for complete API documentation.
 
 ---
 
