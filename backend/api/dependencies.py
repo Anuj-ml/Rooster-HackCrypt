@@ -16,8 +16,9 @@ from .services.orchestrator import (
     get_quiz_orchestrator as _get_quiz_orchestrator
 )
 
-# Knowledge base singleton
+# Singletons
 _knowledge_base = None
+_llm_model = None
 
 
 def get_knowledge_base():
@@ -30,6 +31,18 @@ def get_knowledge_base():
         from src.rag.ingestion_main import get_knowledge_base as _get_kb
         _knowledge_base = _get_kb()
     return _knowledge_base
+
+
+def get_llm():
+    """
+    Dependency that provides the LLM instance.
+    Lazily initializes on first request.
+    """
+    global _llm_model
+    if _llm_model is None:
+        from src.rag.ingestion_main import ModelFactory
+        _llm_model = ModelFactory.get_llm_model()
+    return _llm_model
 
 
 def get_file_handler() -> FileHandler:

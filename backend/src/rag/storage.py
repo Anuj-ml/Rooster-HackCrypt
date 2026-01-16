@@ -4,6 +4,7 @@ import uuid
 import os
 import pickle
 import json
+from typing import List, Optional, Dict
 
 class KnowledgeBase:
     """
