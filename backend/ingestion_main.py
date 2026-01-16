@@ -102,8 +102,9 @@ if __name__ == "__main__":
     # Example Workflow
     
     # 1. Simulate Teacher Upload
-    # upload_new_material(r"C:\College\Hackathons\HackCrypt\Rooster-HackCrypt\backend\data\Module 3.pdf", "eco_003")
+    # upload_new_material(r"C:\College\Hackathons\HackCrypt\Rooster-HackCrypt\backend\ip_data\Module 3.pdf", "eco_003")
     
     # 2. Simulate Student Quiz
     # quiz = student_request_quiz("sess_user_123", "eco_003", "Measures taken to grow Indian Economy ")
+    # print(quiz)
     pass

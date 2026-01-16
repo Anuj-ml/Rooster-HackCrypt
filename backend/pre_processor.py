@@ -72,7 +72,7 @@ Return ONLY the JSON, no other text."""),
     def generate_propositions(self, docs: List[Document]) -> List[List[str]]:
         """
         Batch processes docs to generate propositions with rate limiting.
-        Falls back to using raw chunks if LLM fails after 3 attempts.
+        Falls back to conventional RAG (raw chunks) immediately on API limit errors.
         Returns a list of proposition lists (one list per parent doc).
         """
         import time
@@ -83,7 +83,7 @@ Return ONLY the JSON, no other text."""),
         # Process in smaller batches to avoid rate limits
         results = []
         batch_size = 3  # Process 3 docs at a time
-        fallback_threshold = 3  # Use raw chunks after 3 failures
+        rate_limit_hit = False  # Track if we've hit rate limits
         
         for i in range(0, len(docs), batch_size):
             batch = docs[i:i+batch_size]
@@ -93,8 +93,14 @@ Return ONLY the JSON, no other text."""),
             
             print(f"Processing batch {batch_num}/{total_batches} ({len(batch)} documents)...")
             
-            # Retry logic with fallback
-            max_retries = 5
+            # If we've already hit rate limits, skip decomposition for all remaining batches
+            if rate_limit_hit:
+                print(f"⚠ Using conventional RAG (raw chunks) - API limit reached")
+                results.extend([[doc.page_content] for doc in batch])
+                continue
+            
+            # Try LLM decomposition with limited retries
+            max_retries = 3
             batch_success = False
             
             for attempt in range(max_retries):
@@ -114,36 +120,41 @@ Return ONLY the JSON, no other text."""),
                     break
                     
                 except RateLimitError as e:
-                    if attempt < max_retries - 1:
-                        wait_time = 5 * (2 ** attempt)  # 5s, 10s, 20s, 40s, 80s
-                        print(f"⚠ Rate limit hit. Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}...")
-                        time.sleep(wait_time)
-                    else:
-                        print(f"✗ Rate limit persists after {max_retries} attempts")
+                    print(f"⚠ API rate limit exceeded!")
+                    print(f"⚠ Switching to conventional RAG mode (no LLM decomposition)")
+                    print(f"   All remaining batches will use raw document chunks")
+                    
+                    # Fall back to raw chunks for current batch
+                    results.extend([[doc.page_content] for doc in batch])
+                    
+                    # Mark that we've hit rate limits - all future batches use raw chunks
+                    rate_limit_hit = True
+                    batch_success = True
+                    break
                         
                 except Exception as e:
                     error_msg = str(e)[:100]  # Truncate long error messages
                     print(f"✗ Error on attempt {attempt + 1}/{max_retries}: {error_msg}")
                     
-                    # After fallback_threshold attempts, use raw chunks
-                    if attempt >= fallback_threshold - 1:
-                        print(f"⚠ Falling back to raw chunks for batch {batch_num} (no decomposition)")
-                        # Use document content directly as single proposition
+                    # After 3 attempts, fall back to raw chunks
+                    if attempt >= max_retries - 1:
+                        print(f"⚠ Falling back to conventional RAG for batch {batch_num}")
                         results.extend([[doc.page_content] for doc in batch])
                         batch_success = True
                         break
                     
                     if attempt < max_retries - 1:
-                        wait_time = 5
+                        wait_time = 3
                         print(f"Retrying in {wait_time} seconds...")
                         time.sleep(wait_time)
             
             # If all retries failed and fallback wasn't triggered, raise error
             if not batch_success:
-                raise Exception(f"Failed to process batch {batch_num} after {max_retries} attempts")
+                print(f"⚠ Failed to process batch {batch_num}, using raw chunks")
+                results.extend([[doc.page_content] for doc in batch])
             
-            # Add delay between batches
-            if i + batch_size < len(docs):
+            # Add delay between batches (only if not in fallback mode)
+            if not rate_limit_hit and i + batch_size < len(docs):
                 delay = 5
                 print(f"Waiting {delay} seconds before next batch...")
                 time.sleep(delay)

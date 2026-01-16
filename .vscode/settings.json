@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^C:/College/Hackathons/HackCrypt/Rooster-HackCrypt/venv/Scripts/python\\.exe -u \"c:\\\\College\\\\Hackathons\\\\HackCrypt\\\\Rooster-HackCrypt\\\\backend\\\\ingestion_main\\.py\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
