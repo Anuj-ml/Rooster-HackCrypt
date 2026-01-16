@@ -294,7 +294,7 @@ cd backend
 ..\venv\Scripts\Activate.ps1
 
 # Run the API server
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+uvicorn api.main:app --port 8000
 ```
 
 Server will start at `http://localhost:8000`
