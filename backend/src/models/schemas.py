@@ -45,6 +45,24 @@ class DoubtState(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+# --- Smart Learning Schemas ---
+class HintRequest(BaseModel):
+    """Input schema for Socratic hint generation."""
+    question: str = Field(description="The question the student is trying to answer")
+    correct_answer: str = Field(description="The correct answer to the question")
+    student_answer: Optional[str] = Field(None, description="The student's incorrect answer (if provided)")
+
+class QuizResultItem(BaseModel):
+    """Individual quiz result for session analysis."""
+    question: str = Field(description="The quiz question")
+    is_correct: bool = Field(description="Whether the student answered correctly")
+    user_answer: str = Field(description="The student's answer")
+    correct_answer: str = Field(description="The correct answer")
+
+class AnalysisRequest(BaseModel):
+    """Input schema for AI Sensei session analysis."""
+    results: List[QuizResultItem] = Field(description="List of quiz results to analyze")
+
 # --- Agent State Schema ---
 class AgentState(BaseModel):
     """The shared state for the LangGraph workflow."""

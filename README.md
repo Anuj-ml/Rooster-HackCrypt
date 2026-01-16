@@ -13,12 +13,39 @@ Rooster-HackCrypt converts learning material into a searchable knowledge base an
 
 - Are **grounded in your source content** via Retrieval-Augmented Generation (RAG)
 - Support **adaptive difficulty** (keeps learners in “flow”) or fixed **grind mode** practice
-- Provide **instant flash-note generation** (zero LLM cost cheat sheets)- Offer **AI-powered doubt solving** with ELI5 explanations- Work from multiple material sources:
+- Provide **instant flash-note generation** (zero LLM cost cheat sheets)
+- Offer **AI-powered doubt solving** with ELI5 explanations
+- Include **Smart Learning features** (Socratic hints + session analysis)
+- Work from multiple material sources:
     - **PDFs**
     - **YouTube videos** (transcripts)
     - **Syllabus topics** (LLM-generated chapter text)
 
 The core idea: store *semantic facts* (propositions) for retrieval, enable both quiz generation and instant fact access.
+
+---
+
+## ✨ Key Features
+
+### 🎯 Quiz Generation
+- **Adaptive Mode**: Automatically adjusts difficulty based on performance
+- **Grind Mode**: Practice at fixed difficulty levels
+- **RAG-Grounded**: Questions sourced from your actual learning materials
+
+### ⚡ Flash-Note Generator
+- **Zero LLM Cost**: Retrieves facts directly from vector store
+- **Instant Cheat Sheets**: Get quick summaries without waiting for LLM
+- **Context-Aware**: Uses semantic search for relevant information
+
+### 🤔 Doubt Solver (AI Tutor)
+- **ELI5 Explanations**: Breaks down complex concepts into simple terms
+- **Interactive Learning**: Uses LangGraph for stateful conversations
+- **Contextual Help**: Answers based on your uploaded materials
+
+### 🧠 Smart Learning
+- **Socratic Hints**: Get guiding questions instead of direct answers
+- **AI Sensei**: Session analysis with personalized feedback
+- **Pattern Recognition**: Identifies knowledge gaps and misconceptions
 
 ---
 
@@ -67,9 +94,10 @@ At a high level, the system is split into:
 3. **Quiz agent**: retrieves context + prompts LLM → structured quiz output
 4. **Flash-note generator**: retrieves raw propositions for instant cheat sheets (zero LLM cost)
 5. **Doubt solver**: AI tutor that provides ELI5 explanations for student questions
-6. **Session engines**: track learner state, difficulty, mastery over time
-7. **FastAPI REST API**: Exposes all features via HTTP endpoints
-8. **CLI demo**: ties everything together end-to-end
+6. **Smart learning**: Socratic hints and session analysis for advanced pedagogy
+7. **Session engines**: track learner state, difficulty, mastery over time
+8. **FastAPI REST API**: Exposes all features via HTTP endpoints
+9. **CLI demo**: ties everything together end-to-end
 
 ### Component Map
 
@@ -97,19 +125,22 @@ At a high level, the system is split into:
 └───────────┬───────────────────┘
             │ retrieves context
             ▼
-┌───────────────────────────────┐
-│ QuizAgent (LangGraph)         │  ┌────────────────────────────┐
-│ src/agents/agent.py           │  │ FlashNoteGenerator         │
-└───────────┬───────────────────┘  │ src/features/flash_note... │
-            │ generates quizzes    └────────────┬───────────────┘
-            ▼                                   │ zero-cost facts
-┌───────────────────────────────┐              │
-│ AdaptiveLogic / Difficulty    │◄─────────────┘
-│ src/core/logic_engine.py      │
-│ src/core/difficulty_engine.py │  ┌────────────────────────────┐
-└───────────────────────────────┘  │ DoubtSolverAgent (NEW)     │
-                                   │ src/features/doubt_solver  │
-                                   │ ELI5 explanations          │
+┌───────────────────────────────┐  ┌────────────────────────────┐
+│ QuizAgent (LangGraph)         │  │ FlashNoteGenerator         │
+│ src/agents/agent.py           │  │ src/features/flash_note... │
+└───────────┬───────────────────┘  └────────────┬───────────────┘
+            │ generates quizzes                 │ zero-cost facts
+            ▼                                   ▼
+┌───────────────────────────────┐  ┌────────────────────────────┐
+│ AdaptiveLogic / Difficulty    │  │ DoubtSolverAgent           │
+│ src/core/logic_engine.py      │  │ src/features/doubt_solver  │
+│ src/core/difficulty_engine.py │  │ ELI5 explanations          │
+└───────────────────────────────┘  └────────────────────────────┘
+                                   ┌────────────────────────────┐
+                                   │ Smart Learning (NEW)       │
+                                   │ src/features/smart_learn.. │
+                                   │ - Socratic Hints           │
+                                   │ - Session Analysis         │
                                    └────────────────────────────┘
 ```
 
@@ -183,17 +214,19 @@ Recommended approach:
 │  │  │  ├─ ingestion.py         # PDF/YouTube/Syllabus upload
 │  │  │  ├─ quiz.py              # Quiz & session management
 │  │  │  ├─ flashnotes.py        # Flash-note generation
-│  │  │  └─ doubt_solver.py      # Doubt solver (NEW)
+│  │  │  ├─ doubt_solver.py      # Doubt solver
+│  │  │  └─ smart_learning.py    # Socratic hints + session analysis (NEW)
 │  │  ├─ services/               # Business logic
 │  │  ├─ models/                 # Pydantic request/response models
 │  │  └─ middleware/             # Error handling
 │  ├─ src/
 │  │  ├─ agents/                 # LangGraph quiz agent
 │  │  ├─ core/                   # Adaptive engine + difficulty config
-│  │  ├─ features/               # Quiz/session + flash-note generator (NEW)
+│  │  ├─ features/               # Quiz/session + flash-note generator
 │  │  │  ├─ quiz_generation_main.py
 │  │  │  ├─ flash_note_generator.py
-│  │  │  └─ doubt_solver.py      # AI tutor (NEW)
+│  │  │  ├─ doubt_solver.py      # AI tutor
+│  │  │  └─ smart_learning.py    # Socratic hints + session analysis (NEW)
 │  │  ├─ loaders/                # PDF/YouTube/Syllabus loaders
 │  │  ├─ rag/                    # ingestion + storage + preprocessing
 │  │  └─ models/                 # pydantic schemas
@@ -201,8 +234,9 @@ Recommended approach:
 │  └─ data/                      # embedding cache (and optional local data)
 ├─ data/                         # additional caches/data (workspace-level)
 └─ docs/                         # design notes, checkpoints
-   ├─ Flashcard_Readme.md        # Flash-note feature documentation (NEW)
-   ├─ DoubtSolver_Readme.md      # Doubt solver feature documentation (NEW)
+   ├─ Flashcard_Readme.md        # Flash-note feature documentation
+   ├─ DoubtSolver_Readme.md      # Doubt solver feature documentation
+   ├─ SmartLearning_Readme.md    # Smart Learning features documentation (NEW)
    └─ ...
 ```
 
@@ -275,7 +309,9 @@ Server will start at `http://localhost:8000`
 - `POST /api/v1/sessions/adaptive` - Create adaptive quiz session
 - `POST /api/v1/sessions/{id}/quiz` - Generate quiz
 - `GET /api/v1/cheat-sheet` - **Flash-note generator**
-- `POST /api/v1/solve-doubt` - **AI tutor for doubts (NEW)**
+- `POST /api/v1/solve-doubt` - **AI tutor for doubts**
+- `POST /api/v1/hint/socratic` - **Socratic hints (NEW)**
+- `POST /api/v1/analyze-session` - **Session analysis (NEW)**
 
 See [API_README.md](API_README.md) for complete API documentation.
 

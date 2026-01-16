@@ -16,6 +16,7 @@ Complete REST API for the AI-Powered Adaptive Learning Engine.
   - [Ingestion](#ingestion-endpoints)
   - [Sessions & Quizzes](#sessions--quizzes-endpoints)
   - [Doubt Solver](#doubt-solver-endpoints)
+  - [Smart Learning](#smart-learning-endpoints)
 - [Request/Response Formats](#requestresponse-formats)
 - [Error Handling](#error-handling)
 - [Frontend Integration Guide](#frontend-integration-guide)
@@ -86,7 +87,8 @@ The Rooster-HackCrypt API provides endpoints for:
 | **Session Management** | Create adaptive or grind mode learning sessions |
 | **Quiz Generation** | Generate AI-powered quizzes from your materials |
 | **Flash-Note Generator** | ⚡ Instant cheat sheets with zero LLM cost |
-| **Doubt Solver** | 💡 **NEW**: ELI5 explanations for student questions |
+| **Doubt Solver** | 💡 ELI5 explanations for student questions |
+| **Smart Learning** | 🧠 **NEW**: Socratic hints + session analysis |
 | **Progress Tracking** | Submit answers and track mastery scores |
 
 ---
@@ -594,6 +596,135 @@ List all available materials for doubt solving.
 
 ---
 
+### Smart Learning Endpoints
+
+#### `POST /api/v1/hint/socratic`
+
+Generate a Socratic hint - a guiding question instead of a direct answer.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "question": "What is the capital of France?",
+  "correct_answer": "Paris",
+  "student_answer": "London"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `question` | string | Yes | The quiz question |
+| `correct_answer` | string | Yes | The correct answer |
+| `student_answer` | string | No | Student's wrong answer (helps contextualize hint) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Hint generated successfully",
+  "data": {
+    "hint": "Which city is home to the Eiffel Tower?"
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Key Features:**
+- ✅ **Socratic Method** - Guides thinking without revealing answer
+- ✅ **Concise** - Hints under 20 words
+- ✅ **Context-Aware** - Uses student's wrong answer to tailor guidance
+- ✅ **Promotes Learning** - Encourages active problem-solving
+
+**Use Cases:**
+- Student gets quiz question wrong
+- Want to guide without spoiling
+- Building critical thinking skills
+- Maintaining student engagement
+
+---
+
+#### `POST /api/v1/analyze-session`
+
+Analyze a complete quiz session and provide personalized feedback.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "results": [
+    {
+      "question": "What is photosynthesis?",
+      "is_correct": false,
+      "user_answer": "Plants breathing",
+      "correct_answer": "Process where plants convert light energy into chemical energy"
+    },
+    {
+      "question": "What do plants need for photosynthesis?",
+      "is_correct": false,
+      "user_answer": "Just water",
+      "correct_answer": "Sunlight, water, and carbon dioxide"
+    },
+    {
+      "question": "What is the powerhouse of the cell?",
+      "is_correct": true,
+      "user_answer": "Mitochondria",
+      "correct_answer": "Mitochondria"
+    }
+  ]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `results` | array | Yes | Array of quiz results with questions, answers, correctness |
+| `results[].question` | string | Yes | The quiz question |
+| `results[].is_correct` | boolean | Yes | Whether answer was correct |
+| `results[].user_answer` | string | Yes | Student's answer |
+| `results[].correct_answer` | string | Yes | The correct answer |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Session analyzed successfully",
+  "data": {
+    "analysis": "You have a foundational understanding of cellular biology but need to strengthen your grasp of photosynthesis mechanics. Review the inputs (light, water, CO₂) and outputs (glucose, oxygen) of photosynthesis, focusing on the light-dependent and light-independent reactions. Practice distinguishing between cellular respiration and photosynthesis to solidify these core concepts."
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Analysis Response (Perfect Score):**
+```json
+{
+  "success": true,
+  "message": "Session analyzed successfully",
+  "data": {
+    "analysis": "Excellent work! You answered all questions correctly. Keep up the great work!"
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Key Features:**
+- ✅ **Pattern Recognition** - Identifies common misconceptions
+- ✅ **Concept Extraction** - Pinpoints specific topics needing review
+- ✅ **Actionable Advice** - 2-3 sentences with clear next steps
+- ✅ **Positive Reinforcement** - Acknowledges strengths
+- ✅ **Performance Optimized** - Instant response for perfect scores (skips LLM)
+
+**Use Cases:**
+- After completing a quiz
+- Reviewing student progress
+- Identifying knowledge gaps
+- Personalized study recommendations
+- Tracking improvement over time
+
+---
+
 ### Flash-Note Generator Endpoints
 
 #### `GET /api/v1/cheat-sheet`
@@ -851,7 +982,7 @@ export const api = {
   getCheatSheetBySource: (sourceId: string, numFacts = 30) =>
     apiRequest(`/cheat-sheet/by-source/${sourceId}?num_facts=${numFacts}`),
   
-  // Doubt Solver (NEW)
+  // Doubt Solver
   solveDoubt: (question: string, sourceId: string, sessionId?: string) =>
     apiRequest('/solve-doubt', {
       method: 'POST',
@@ -863,6 +994,28 @@ export const api = {
     }),
   
   getDoubtSources: () => apiRequest('/solve-doubt/sources'),
+  
+  // Smart Learning (NEW)
+  generateSocraticHint: (question: string, correctAnswer: string, studentAnswer?: string) =>
+    apiRequest('/hint/socratic', {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        correct_answer: correctAnswer,
+        student_answer: studentAnswer,
+      }),
+    }),
+  
+  analyzeSession: (results: Array<{
+    question: string;
+    is_correct: boolean;
+    user_answer: string;
+    correct_answer: string;
+  }>) =>
+    apiRequest('/analyze-session', {
+      method: 'POST',
+      body: JSON.stringify({ results }),
+    }),
 };
 ```
 
@@ -1044,7 +1197,7 @@ export default {
   getCheatSheetBySource: (sourceId, numFacts = 30) =>
     client.get(`/cheat-sheet/by-source/${sourceId}`, { params: { num_facts: numFacts } }),
   
-  // Doubt Solver (NEW)
+  // Doubt Solver
   solveDoubt: (question, sourceId, sessionId) =>
     client.post('/solve-doubt', {
       question,
@@ -1053,6 +1206,17 @@ export default {
     }),
   
   getDoubtSources: () => client.get('/solve-doubt/sources'),
+  
+  // Smart Learning (NEW)
+  generateSocraticHint: (question, correctAnswer, studentAnswer) =>
+    client.post('/hint/socratic', {
+      question,
+      correct_answer: correctAnswer,
+      student_answer: studentAnswer,
+    }),
+  
+  analyzeSession: (results) =>
+    client.post('/analyze-session', { results }),
 };
   
   getQuiz: (sessionId, numQuestions = 5) =>
