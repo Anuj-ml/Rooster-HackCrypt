@@ -66,7 +66,9 @@ async def create_study_group(
         group_data = state.create_study_group(
             group_id=group_id,
             name=request.name,
-            creator_id=request.creator_id
+            creator_id=request.creator_id,
+            description=request.description or "",
+            public=request.public
         )
         
         return APIResponse(
@@ -77,6 +79,26 @@ async def create_study_group(
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create group: {str(e)}")
+
+
+@router.get("")
+async def list_study_groups(
+    state: GlobalState = Depends(get_state)
+) -> APIResponse:
+    """
+    List all study groups.
+    
+    Returns all available study groups.
+    """
+    try:
+        groups = state.list_all_groups()
+        return APIResponse(
+            success=True,
+            message="Groups retrieved successfully",
+            data={"groups": groups}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list groups: {str(e)}")
 
 
 @router.post("/join")
@@ -111,13 +133,22 @@ async def join_study_group(
     ```
     """
     try:
-        # Check if group exists
-        group = state.get_study_group(request.group_id)
-        if not group:
-            raise HTTPException(status_code=404, detail="Study group not found")
+        # Find group by join_code if provided, otherwise by group_id
+        if request.join_code:
+            group = state.get_study_group_by_code(request.join_code)
+            if not group:
+                raise HTTPException(status_code=404, detail="Study group not found with that join code")
+            group_id = group["group_id"]
+        elif request.group_id:
+            group = state.get_study_group(request.group_id)
+            if not group:
+                raise HTTPException(status_code=404, detail="Study group not found")
+            group_id = request.group_id
+        else:
+            raise HTTPException(status_code=400, detail="Either group_id or join_code must be provided")
         
         # Add member
-        success = state.add_group_member(request.group_id, request.user_id)
+        success = state.add_group_member(group_id, request.user_id)
         
         if not success:
             raise HTTPException(
@@ -126,7 +157,7 @@ async def join_study_group(
             )
         
         # Get updated group
-        updated_group = state.get_study_group(request.group_id)
+        updated_group = state.get_study_group(group_id)
         
         return APIResponse(
             success=True,

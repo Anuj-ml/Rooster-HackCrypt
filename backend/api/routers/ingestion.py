@@ -7,6 +7,7 @@ Handle PDF uploads, YouTube URL processing, and syllabus generation.
 
 import os
 import uuid
+import logging
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from typing import Optional
@@ -17,6 +18,8 @@ from ..config import settings
 from ..services.file_handler import FileHandler
 from ..services.orchestrator import IngestionOrchestrator
 from ..dependencies import get_ingestion_orchestrator, get_file_handler
+
+logger = logging.getLogger("rooster.ingestion")
 
 router = APIRouter(prefix="/ingest", tags=["Ingestion"])
 
@@ -79,16 +82,22 @@ async def ingest_pdf(
         # Sanitize source_id
         source_id = "".join(c if c.isalnum() or c in "_-" else "_" for c in source_id)
     
+    logger.info(f"📄 Processing PDF upload: {file.filename} -> source_id: {source_id}")
+    logger.info(f"   File size: {len(content)} bytes")
+    
     temp_path = None
     try:
         # Save file temporarily
         temp_path = await file_handler.save_upload(file, content)
+        logger.info(f"   Saved to: {temp_path}")
         
         # Process the PDF
+        logger.info(f"   Starting ingestion...")
         result = await orchestrator.ingest_pdf(
             file_path=str(temp_path),
             source_id=source_id
         )
+        logger.info(f"   ✅ Ingestion complete: {result['num_documents']} docs, {result['num_propositions']} propositions")
         
         # Schedule cleanup in background
         background_tasks.add_task(file_handler.cleanup_file, temp_path)
@@ -105,6 +114,7 @@ async def ingest_pdf(
         )
         
     except Exception as e:
+        logger.error(f"   ❌ Failed to process PDF: {str(e)}")
         # Cleanup on error
         if temp_path and temp_path.exists():
             background_tasks.add_task(file_handler.cleanup_file, temp_path)

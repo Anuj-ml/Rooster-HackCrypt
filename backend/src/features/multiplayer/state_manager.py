@@ -247,12 +247,21 @@ class GlobalState:
     
     # ==================== STUDY GROUP MANAGEMENT ====================
     
-    def create_study_group(self, group_id: str, name: str, creator_id: str) -> Dict[str, Any]:
+    def create_study_group(self, group_id: str, name: str, creator_id: str, description: str = "", public: bool = True) -> Dict[str, Any]:
         """Create a new study group."""
+        import random
+        import string
+        
+        # Generate join code (8 character alphanumeric)
+        join_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        
         with self._groups_lock:
             group_data = {
                 "group_id": group_id,
                 "name": name,
+                "description": description,
+                "public": public,
+                "join_code": join_code,
                 "members": [creator_id],
                 "resources": [],
                 "created_at": datetime.utcnow().isoformat(),
@@ -265,6 +274,19 @@ class GlobalState:
         """Get study group data."""
         with self._groups_lock:
             return self.study_groups.get(group_id)
+    
+    def get_study_group_by_code(self, join_code: str) -> Optional[Dict[str, Any]]:
+        """Find study group by join code."""
+        with self._groups_lock:
+            for group in self.study_groups.values():
+                if group.get("join_code") == join_code:
+                    return group
+            return None
+    
+    def list_all_groups(self) -> List[Dict[str, Any]]:
+        """Get all study groups."""
+        with self._groups_lock:
+            return list(self.study_groups.values())
     
     def add_group_member(self, group_id: str, user_id: str) -> bool:
         """Add a member to a study group."""

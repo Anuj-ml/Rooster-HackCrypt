@@ -17,6 +17,7 @@ Complete REST API for the AI-Powered Adaptive Learning Engine.
   - [Sessions & Quizzes](#sessions--quizzes-endpoints)
   - [Doubt Solver](#doubt-solver-endpoints)
   - [Smart Learning](#smart-learning-endpoints)
+  - [Study Groups](#study-groups-endpoints)
 - [Request/Response Formats](#requestresponse-formats)
 - [Error Handling](#error-handling)
 - [Frontend Integration Guide](#frontend-integration-guide)
@@ -89,7 +90,36 @@ The Rooster-HackCrypt API provides endpoints for:
 | **Flash-Note Generator** | ⚡ Instant cheat sheets with zero LLM cost |
 | **Doubt Solver** | 💡 ELI5 explanations for student questions |
 | **Smart Learning** | 🧠 **NEW**: Socratic hints + session analysis |
+| **Study Groups** | 👥 **NEW**: Collaborative learning with shared resources |
 | **Progress Tracking** | Submit answers and track mastery scores |
+
+---
+
+## Backend Architecture & Logic Flow
+
+To understand how the API processes requests, it helps to know the underlying logic flow.
+
+### 1. Request Lifecycle
+All requests follow a standard path:
+`Client` → `FastAPI Router` → `Service Layer` → `Core Logic/Agent` → `Database/Response`
+
+- **Routers** (`api/routers/`): Handle HTTP request validation and response formatting.
+- **Services** (`api/services/`): Coordinate business logic and call core engines.
+- **Core Engines** (`src/core/`): Pure logic components (e.g., adaptive difficulty calculation).
+- **Agents** (`src/agents/`): Stateful LangGraph agents for complex AI tasks (Quiz Generation, Doubt Solving).
+
+### 2. Logic Engine (Adaptive Difficulty)
+The "Brain" of the adaptive learning system is the `LogicEngine` and `DifficultyEngine`.
+- **Input**: User's current session state, difficulty history, and last answer correctness.
+- **Process**: Calculates a "Mastery Score" (0-100) and determines the next difficulty level.
+- **Output**: Updated session state and difficulty parameters for the next question.
+
+### 3. AI Agents (LangGraph)
+Complex tasks use LangGraph state machines:
+- **Quiz Agent**: Retrieves documents → Formulates questions → Validates against source material.
+- **Doubt Solver**: Retrieves context → Reasons about the answer → Generates ELI5 explanation.
+
+This separation ensures that the API is just an interface to a robust, modular backend system.
 
 ---
 
@@ -820,6 +850,369 @@ curl "http://localhost:8000/api/v1/cheat-sheet/by-source/sql_basics?num_facts=20
 - Concept refresher
 
 For detailed documentation, see [docs/Flashcard_Readme.md](docs/Flashcard_Readme.md).
+
+---
+
+### Study Groups Endpoints
+
+👥 **NEW**: Collaborative learning feature allowing students to form groups and share learning resources.
+
+**Key Features:**
+- ✅ **Group Creation** - Form study groups with up to 2 members
+- ✅ **Resource Sharing** - Upload PDFs that all group members can access
+- ✅ **Automatic Indexing** - Uploaded resources are ingested into ChromaDB
+- ✅ **Group Management** - Create, join, and manage study groups
+
+**Use Cases:**
+- Partner study sessions
+- Shared resource libraries
+- Collaborative learning
+- Peer teaching
+
+---
+
+#### `POST /api/v1/groups/create`
+
+Create a new study group.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "name": "Biology Study Group",
+  "creator_id": "user_123"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Group name (3-50 characters) |
+| `creator_id` | string | Yes | User ID of the creator |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Study group created successfully",
+  "data": {
+    "group_id": "grp_abc123",
+    "name": "Biology Study Group",
+    "members": ["user_123"],
+    "max_members": 2,
+    "resources": [],
+    "created_at": "2026-01-17T10:30:00Z"
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Constraints:**
+- Maximum 2 students per group
+- Creator is automatically added as first member
+- Group names must be unique
+
+---
+
+#### `POST /api/v1/groups/join`
+
+Join an existing study group.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "group_id": "grp_abc123",
+  "user_id": "user_456"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `group_id` | string | Yes | ID of the group to join |
+| `user_id` | string | Yes | User ID of the joining member |
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Joined study group successfully",
+  "data": {
+    "group_id": "grp_abc123",
+    "name": "Biology Study Group",
+    "members": ["user_123", "user_456"],
+    "max_members": 2,
+    "resources": ["bio_textbook_001"],
+    "created_at": "2026-01-17T10:30:00Z"
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Error Cases:**
+- `404`: Group not found
+- `400`: Group is full (max 2 members)
+- `400`: User is already a member
+
+---
+
+#### `GET /api/v1/groups`
+
+List all study groups.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "groups": [
+      {
+        "group_id": "grp_abc123",
+        "name": "Biology Study Group",
+        "member_count": 2,
+        "max_members": 2,
+        "has_space": false
+      },
+      {
+        "group_id": "grp_xyz789",
+        "name": "Chemistry Lab Partners",
+        "member_count": 1,
+        "max_members": 2,
+        "has_space": true
+      }
+    ],
+    "total": 2
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Use Cases:**
+- Browse available groups
+- Find groups with open spots
+- Discover study partners
+
+---
+
+#### `GET /api/v1/groups/{group_id}`
+
+Get detailed information about a specific study group.
+
+**Parameters:**
+| Name | Type | Location | Description |
+|------|------|----------|-------------|
+| `group_id` | string | path | Group identifier |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "group_id": "grp_abc123",
+    "name": "Biology Study Group",
+    "members": ["user_123", "user_456"],
+    "max_members": 2,
+    "resources": ["bio_textbook_001", "bio_notes_002"],
+    "created_at": "2026-01-17T10:30:00Z"
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Error Cases:**
+- `404`: Group not found
+
+---
+
+#### `POST /api/v1/groups/{group_id}/upload`
+
+Upload a PDF resource to a study group. The PDF is automatically ingested and made available to all group members.
+
+**Content-Type:** `multipart/form-data`
+
+**Parameters:**
+| Name | Type | Location | Required | Description |
+|------|------|----------|----------|-------------|
+| `group_id` | string | path | Yes | Group identifier |
+| `file` | file | body | Yes | PDF file to upload |
+| `uploaded_by` | string | body | Yes | User ID uploading the file |
+| `title` | string | body | No | Optional resource title |
+
+**Example (JavaScript/Fetch):**
+```javascript
+const formData = new FormData();
+formData.append('file', pdfFile);
+formData.append('uploaded_by', 'user_123');
+formData.append('title', 'Chapter 5 - Photosynthesis');
+
+const response = await fetch('/api/v1/groups/grp_abc123/upload', {
+  method: 'POST',
+  body: formData
+});
+```
+
+**Example (cURL):**
+```bash
+curl -X POST http://localhost:8000/api/v1/groups/grp_abc123/upload \
+  -F "file=@biology_chapter5.pdf" \
+  -F "uploaded_by=user_123" \
+  -F "title=Chapter 5 - Photosynthesis"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Resource uploaded and indexed successfully",
+  "data": {
+    "pdf_source_id": "grp_abc123_8a7b3c1d",
+    "title": "Chapter 5 - Photosynthesis",
+    "group_id": "grp_abc123",
+    "uploaded_by": "user_123",
+    "ingestion_result": {
+      "num_documents": 12,
+      "num_propositions": 156,
+      "processing_time": "8.5s"
+    }
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**What Happens:**
+1. File is uploaded and temporarily stored
+2. PDF is ingested using the ingestion pipeline
+3. Documents are indexed in ChromaDB
+4. Resource is linked to the group
+5. All group members can now use `pdf_source_id` for quizzes
+
+**Error Cases:**
+- `404`: Group not found
+- `403`: Only group members can upload
+- `400`: Invalid file type (only PDFs allowed)
+- `413`: File too large (max 50MB)
+
+**Use Cases:**
+- Share textbook chapters
+- Upload class notes
+- Provide study materials
+- Create shared resource library
+
+---
+
+#### `GET /api/v1/groups/{group_id}/resources`
+
+List all resources uploaded to a study group.
+
+**Parameters:**
+| Name | Type | Location | Description |
+|------|------|----------|-------------|
+| `group_id` | string | path | Group identifier |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "resources": [
+      {
+        "pdf_source_id": "grp_abc123_8a7b3c1d",
+        "title": "Chapter 5 - Photosynthesis",
+        "uploaded_by": "user_123",
+        "uploaded_at": "2026-01-17T10:30:00Z"
+      },
+      {
+        "pdf_source_id": "grp_abc123_9b8c4d2e",
+        "title": "Cellular Respiration Notes",
+        "uploaded_by": "user_456",
+        "uploaded_at": "2026-01-17T11:45:00Z"
+      }
+    ],
+    "total": 2
+  },
+  "timestamp": "2026-01-17T10:30:00.000Z"
+}
+```
+
+**Using Resources:**
+After uploading, any group member can use the `pdf_source_id` to:
+- Generate quizzes
+- Create flash notes
+- Ask doubt solver questions
+
+**Example - Generate Quiz from Group Resource:**
+```json
+POST /api/v1/sessions/adaptive
+{
+  "user_id": "user_456",
+  "source_id": "grp_abc123_8a7b3c1d",
+  "topic": "photosynthesis",
+  "initial_difficulty": "MEDIUM"
+}
+```
+
+**Error Cases:**
+- `404`: Group not found
+
+---
+
+### Study Groups - Complete Workflow Example
+
+**1. User A creates a group:**
+```bash
+POST /api/v1/groups/create
+{
+  "name": "AP Biology Study Partners",
+  "creator_id": "alice_123"
+}
+# Response: group_id = "grp_bio001"
+```
+
+**2. User B joins the group:**
+```bash
+POST /api/v1/groups/join
+{
+  "group_id": "grp_bio001",
+  "user_id": "bob_456"
+}
+```
+
+**3. User A uploads a textbook chapter:**
+```bash
+POST /api/v1/groups/grp_bio001/upload
+- file: biology_ch5.pdf
+- uploaded_by: alice_123
+- title: "Chapter 5 - Photosynthesis"
+# Response: pdf_source_id = "grp_bio001_abc123"
+```
+
+**4. User B generates a quiz from the shared resource:**
+```bash
+POST /api/v1/sessions/adaptive
+{
+  "user_id": "bob_456",
+  "source_id": "grp_bio001_abc123",
+  "topic": "default",
+  "initial_difficulty": "MEDIUM"
+}
+# Response: session_id = "sess_xyz789"
+```
+
+**5. Generate quiz questions:**
+```bash
+POST /api/v1/sessions/sess_xyz789/quiz
+{
+  "num_questions": 5
+}
+# Both users can now study from the same material!
+```
+
+**6. View all group resources:**
+```bash
+GET /api/v1/groups/grp_bio001/resources
+# Shows all PDFs uploaded by group members
+```
 
 ---
 

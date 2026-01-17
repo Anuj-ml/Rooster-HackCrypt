@@ -93,12 +93,15 @@ class CreateGroupRequest(BaseModel):
     """Input schema for creating a study group."""
     name: str = Field(description="Group name", min_length=3, max_length=50)
     creator_id: str = Field(description="User ID of the creator")
+    description: Optional[str] = Field(default="", description="Group description")
+    public: bool = Field(default=True, description="Whether group is public")
 
 
 class JoinGroupRequest(BaseModel):
     """Input schema for joining a study group."""
-    group_id: str = Field(description="Group ID to join")
+    group_id: Optional[str] = Field(default=None, description="Group ID to join")
     user_id: str = Field(description="User ID joining")
+    join_code: Optional[str] = Field(default=None, description="Join code")
 
 
 class UploadGroupResourceRequest(BaseModel):

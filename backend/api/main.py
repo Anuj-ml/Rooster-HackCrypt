@@ -81,6 +81,16 @@ async def lifespan(app: FastAPI):
     await file_handler.cleanup_old_files()
 
 
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("rooster")
+
 # Create FastAPI application
 app = FastAPI(
     title=settings.API_TITLE,
@@ -91,6 +101,17 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request, call_next):
+    """Log all incoming requests for debugging."""
+    logger.info(f"📥 {request.method} {request.url.path} from {request.client.host if request.client else 'unknown'}")
+    response = await call_next(request)
+    logger.info(f"📤 {request.method} {request.url.path} -> {response.status_code}")
+    return response
+
 
 # Configure CORS
 app.add_middleware(

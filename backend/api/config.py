@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     DEBUG: bool = False
     
-    # CORS Settings
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
+    # CORS Settings - include all common frontend ports
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500"
     
     @property
     def cors_origins_list(self) -> List[str]:
